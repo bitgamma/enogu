@@ -56,6 +56,14 @@ def get_profile(profile_name: str) -> dict:
         config = json.load(f)
     
     config["name"] = profile_name
+    
+    prompt_file_path = profile_path.parent / "extraction_prompt.txt"
+    if prompt_file_path.exists():
+        with open(prompt_file_path) as f:
+            config["extraction_prompt"] = f.read().strip()
+    else:
+        raise HTTPException(status_code=404, detail=f"Prompt file extraction_prompt.txt not found")
+    
     return config
 
 
@@ -126,6 +134,12 @@ async def llm_analyze_image(image: Image.Image, profile: dict) -> dict:
     
     result = response.json()
     content = result["choices"][0]["message"]["content"]
+    
+    content = content.strip()
+    if content.startswith("```") and content.endswith("```"):
+        content = content[3:-3].strip()
+        if content.startswith("json"):
+            content = content[4:].strip()
     
     try:
         return json.loads(content)

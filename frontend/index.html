@@ -9,44 +9,91 @@
 <body>
     <div class="container">
         <h1>🎨 Image Generator</h1>
-        <p class="subtitle">Upload an image to generate a cute bangboo character!</p>
         
-        <!-- Profile Selection -->
-        <div class="profile-section">
-            <label for="profileSelect">Select Profile:</label>
-            <select id="profileSelect">
-                <option value="">Loading profiles...</option>
-            </select>
+        <!-- Progress Indicator -->
+        <div class="progress-indicator">
+            <div class="step active" data-step="1">
+                <div class="step-number">1</div>
+                <div class="step-label">Setup</div>
+            </div>
+            <div class="step-line"></div>
+            <div class="step" data-step="2">
+                <div class="step-number">2</div>
+                <div class="step-label">Analyze</div>
+            </div>
+            <div class="step-line"></div>
+            <div class="step" data-step="3">
+                <div class="step-number">3</div>
+                <div class="step-label">Generate</div>
+            </div>
         </div>
         
-        <div class="upload-section" id="uploadSection">
-            <div class="upload-icon">📤</div>
-            <p>Click or drag an image here</p>
-            <p style="color: #999; font-size: 14px; margin-top: 10px;">Supports PNG, JPG</p>
+        <!-- Step 1: Setup -->
+        <div class="step-content active" id="step1">
+            <h2>Step 1: Setup</h2>
+            <div class="setup-section">
+                <div class="profile-section">
+                    <label for="profileSelect">Select Profile:</label>
+                    <select id="profileSelect">
+                        <option value="">Loading profiles...</option>
+                    </select>
+                </div>
+                
+                <div class="upload-section" id="uploadSection">
+                    <div class="upload-icon">📤</div>
+                    <p>Click or drag an image here</p>
+                    <p style="color: #999; font-size: 14px; margin-top: 10px;">Supports PNG, JPG</p>
+                </div>
+                
+                <input type="file" id="fileInput" accept="image/*">
+                <img id="previewImage" alt="Preview">
+            </div>
+            
+            <button class="btn next-btn" id="nextBtn">Next: Analyze →</button>
         </div>
         
-        <input type="file" id="fileInput" accept="image/*">
-        <img id="previewImage" alt="Preview">
-        
-        <button class="btn" id="analyzeBtn" disabled>Analyze Image</button>
-        
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p id="loadingText">Processing...</p>
+        <!-- Step 2: Analyze -->
+        <div class="step-content" id="step2">
+            <h2>Step 2: Analyze Image</h2>
+            <div class="analyze-section">
+                <img id="analyzePreview" alt="Preview">
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p id="loadingText">Analyzing image...</p>
+                </div>
+                <div class="error" id="error"></div>
+                <div class="prompt-display" id="promptDisplay">
+                    <h3>📝 Generated Prompt:</h3>
+                    <textarea class="prompt-text" id="promptText" rows="5"></textarea>
+                </div>
+            </div>
+            
+            <div class="step-buttons">
+                <button class="btn prev-btn" id="prevBtn">← Back</button>
+                <button class="btn secondary-btn" id="reanalyzeBtn">↻ Re-analyze</button>
+                <button class="btn next-btn" id="generateBtn" disabled>Next: Generate →</button>
+            </div>
         </div>
         
-        <div class="error" id="error"></div>
-        
-        <div class="prompt-display" id="promptDisplay">
-            <h3>📝 Generated Prompt:</h3>
-            <p class="prompt-text" id="promptText"></p>
-        </div>
-        
-        <button class="btn" id="generateBtn" disabled>Generate Image</button>
-        
-        <div class="result-section" id="resultSection">
-            <h3>✨ Generated Result:</h3>
-            <img id="resultImage" alt="Generated">
+        <!-- Step 3: Generate -->
+        <div class="step-content" id="step3">
+            <h2>Step 3: Generate Image</h2>
+            <div class="generate-section">
+                <div class="loading" id="generateLoading">
+                    <div class="spinner"></div>
+                    <p id="generateLoadingText">Generating image...</p>
+                </div>
+                <div class="error" id="generateError"></div>
+                <div class="result-section" id="resultSection">
+                    <h3>✨ Generated Result:</h3>
+                    <img id="resultImage" alt="Generated">
+                </div>
+            </div>
+            
+            <div class="step-buttons">
+                <button class="btn prev-btn" id="prev2Btn">← Back</button>
+                <button class="btn next-btn" id="regenerateBtn" disabled>Regenerate</button>
+            </div>
         </div>
     </div>
     

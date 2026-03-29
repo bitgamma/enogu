@@ -1,23 +1,33 @@
 // Image Generator Frontend
-// Handles profile selection, image upload, analysis, and generation
+// Step-based navigation with profile selection and image upload
 
+const profileSelect = document.getElementById('profileSelect');
 const uploadSection = document.getElementById('uploadSection');
 const fileInput = document.getElementById('fileInput');
 const previewImage = document.getElementById('previewImage');
-const analyzeBtn = document.getElementById('analyzeBtn');
+const analyzePreview = document.getElementById('analyzePreview');
+const nextBtn = document.getElementById('nextBtn');
+const prevBtn = document.getElementById('prevBtn');
+const prev2Btn = document.getElementById('prev2Btn');
 const generateBtn = document.getElementById('generateBtn');
+const regenerateBtn = document.getElementById('regenerateBtn');
 const loading = document.getElementById('loading');
 const loadingText = document.getElementById('loadingText');
 const error = document.getElementById('error');
 const promptDisplay = document.getElementById('promptDisplay');
 const promptText = document.getElementById('promptText');
+const reanalyzeBtn = document.getElementById('reanalyzeBtn');
+const generateLoading = document.getElementById('generateLoading');
+const generateLoadingText = document.getElementById('generateLoadingText');
+const generateError = document.getElementById('generateError');
 const resultSection = document.getElementById('resultSection');
 const resultImage = document.getElementById('resultImage');
-const profileSelect = document.getElementById('profileSelect');
 
+let currentStep = 1;
 let selectedFile = null;
 let generatedPrompt = null;
 let currentProfile = null;
+let availableProfiles = [];
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -31,12 +41,19 @@ async function loadProfiles() {
         const data = await response.json();
         
         if (data.profiles && data.profiles.length > 0) {
-            profileSelect.innerHTML = '<option value="">Select a profile...</option>';
-            data.profiles.forEach(profile => {
+            availableProfiles = data.profiles;
+            profileSelect.innerHTML = '';
+            data.profiles.forEach((profile, index) => {
                 const option = document.createElement('option');
                 option.value = profile.name;
                 option.textContent = profile.name;
                 profileSelect.appendChild(option);
+                
+                // Auto-select first profile
+                if (index === 0) {
+                    option.selected = true;
+                    currentProfile = profile.name;
+                }
             });
         } else {
             profileSelect.innerHTML = '<option value="">No profiles available</option>';
@@ -84,7 +101,7 @@ fileInput.addEventListener('change', (e) => {
 
 function handleFile(file) {
     if (!file.type.startsWith('image/')) {
-        showError('Please select an image file');
+        showError('Please select an image file', error);
         return;
     }
     
@@ -93,23 +110,68 @@ function handleFile(file) {
     reader.onload = (e) => {
         previewImage.src = e.target.result;
         previewImage.style.display = 'block';
-        analyzeBtn.disabled = false;
-        hideError();
+        analyzePreview.src = e.target.result;
+        analyzePreview.style.display = 'block';
+        hideError(error);
     };
     reader.readAsDataURL(file);
 }
 
-async function analyzeImage() {
-    if (!selectedFile) return;
+// Step navigation
+function goToStep(step) {
+    // Update step content visibility
+    document.querySelectorAll('.step-content').forEach((el, index) => {
+        el.classList.toggle('active', index + 1 === step);
+    });
+    
+    // Update progress indicator
+    document.querySelectorAll('.step').forEach((el, index) => {
+        el.classList.toggle('active', index + 1 === step);
+        el.classList.toggle('completed', index + 1 < step);
+    });
+    
+    currentStep = step;
+}
+
+// Step 1 -> Step 2
+nextBtn.addEventListener('click', async () => {
     if (!currentProfile) {
-        showError('Please select a profile first');
+        showError('Please select a profile', error);
         return;
     }
     
-    showLoading('Analyzing image...');
-    hideError();
+    if (!selectedFile) {
+        showError('Please upload an image', error);
+        return;
+    }
+    
+    await analyzeImage();
+});
+
+// Step 2 -> Step 1 (back)
+prevBtn.addEventListener('click', () => {
+    goToStep(1);
+});
+
+// Step 2 -> Step 3
+generateBtn.addEventListener('click', async () => {
+    await generateImage();
+});
+
+// Step 3 -> Step 2 (back)
+prev2Btn.addEventListener('click', () => {
+    goToStep(2);
+});
+
+// Step 3 -> Regenerate
+regenerateBtn.addEventListener('click', async () => {
+    await generateImage();
+});
+
+async function analyzeImage() {
+    showLoading(loading, loadingText, 'Analyzing image...');
+    hideError(error);
     promptDisplay.style.display = 'none';
-    resultSection.style.display = 'none';
     
     const formData = new FormData();
     formData.append('file', selectedFile);
@@ -128,31 +190,38 @@ async function analyzeImage() {
         }
         
         generatedPrompt = data.prompt;
-        promptText.textContent = generatedPrompt;
+        promptText.value = generatedPrompt;
         promptDisplay.style.display = 'block';
         generateBtn.disabled = false;
         
+        // Move to next step
+        goToStep(2);
+        
     } catch (err) {
-        showError(err.message);
+        showError(err.message, error);
     } finally {
-        hideLoading();
+        hideLoading(loading, loadingText);
     }
 }
 
-async function generateImage() {
-    if (!generatedPrompt) return;
-    if (!currentProfile) {
-        showError('Please select a profile first');
-        return;
-    }
+// Re-analyze button handler
+reanalyzeBtn.addEventListener('click', async () => {
+    // Update generatedPrompt with the edited value
+    generatedPrompt = promptText.value;
     
-    showLoading('Generating image... This may take a moment.');
-    hideError();
+    // Re-run analysis with the same image
+    await analyzeImage();
+});
+
+async function generateImage() {
+    showLoading(generateLoading, generateLoadingText, 'Generating image... This may take a moment.');
+    hideError(generateError);
     resultSection.style.display = 'none';
+    regenerateBtn.disabled = true;
     
     try {
         const formData = new FormData();
-        formData.append('prompt', generatedPrompt);
+        formData.append('prompt', promptText.value);
         formData.append('profile', currentProfile);
         
         const response = await fetch('/api/generate', {
@@ -168,35 +237,32 @@ async function generateImage() {
         
         resultImage.src = data.image;
         resultSection.style.display = 'block';
+        regenerateBtn.disabled = false;
+        
+        // Move to next step
+        goToStep(3);
         
     } catch (err) {
-        showError(err.message);
+        showError(err.message, generateError);
     } finally {
-        hideLoading();
+        hideLoading(generateLoading, generateLoadingText);
     }
 }
 
-function showLoading(text) {
-    loadingText.textContent = text;
-    loading.classList.add('active');
-    analyzeBtn.disabled = true;
-    generateBtn.disabled = true;
+function showLoading(loadingEl, textEl, text) {
+    textEl.textContent = text;
+    loadingEl.classList.add('active');
 }
 
-function hideLoading() {
-    loading.classList.remove('active');
-    analyzeBtn.disabled = false;
-    generateBtn.disabled = false;
+function hideLoading(loadingEl, textEl) {
+    loadingEl.classList.remove('active');
 }
 
-function showError(message) {
-    error.textContent = message;
-    error.style.display = 'block';
+function showError(message, errorEl) {
+    errorEl.textContent = message;
+    errorEl.style.display = 'block';
 }
 
-function hideError() {
-    error.style.display = 'none';
+function hideError(errorEl) {
+    errorEl.style.display = 'none';
 }
-
-analyzeBtn.addEventListener('click', analyzeImage);
-generateBtn.addEventListener('click', generateImage);
