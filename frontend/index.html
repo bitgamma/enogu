@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Generator</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Image Generator</h1>
+        <p class="subtitle">Upload an image to generate a cute bangboo character!</p>
+        
+        <!-- Profile Selection -->
+        <div class="profile-section">
+            <label for="profileSelect">Select Profile:</label>
+            <select id="profileSelect">
+                <option value="">Loading profiles...</option>
+            </select>
+        </div>
+        
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-icon">📤</div>
+            <p>Click or drag an image here</p>
+            <p style="color: #999; font-size: 14px; margin-top: 10px;">Supports PNG, JPG</p>
+        </div>
+        
+        <input type="file" id="fileInput" accept="image/*">
+        <img id="previewImage" alt="Preview">
+        
+        <button class="btn" id="analyzeBtn" disabled>Analyze Image</button>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p id="loadingText">Processing...</p>
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="prompt-display" id="promptDisplay">
+            <h3>📝 Generated Prompt:</h3>
+            <p class="prompt-text" id="promptText"></p>
+        </div>
+        
+        <button class="btn" id="generateBtn" disabled>Generate Image</button>
+        
+        <div class="result-section" id="resultSection">
+            <h3>✨ Generated Result:</h3>
+            <img id="resultImage" alt="Generated">
+        </div>
+    </div>
+    
+    <script src="/static/app.js"></script>
+</body>
+</html>
