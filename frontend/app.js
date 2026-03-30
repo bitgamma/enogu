@@ -419,7 +419,7 @@ reanalyzeBtn.addEventListener('click', async () => {
         promptText.value = generatedPrompt;
         
         processingText.textContent = 'Analysis complete';
-        progressFill.style.width = '50%';
+        progressFill.style.width = '100%';
         
     } catch (err) {
         console.error('Re-analysis failed:', err);
