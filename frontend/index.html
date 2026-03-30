@@ -8,7 +8,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🎨 Image Generator</h1>
+        <h1>Enogu</h1>
         
         <!-- Progress Bar -->
         <div class="progress-bar-container">
@@ -43,7 +43,7 @@
                 </div>
                 
                 <div class="upload-section" id="uploadSection">
-                    <div class="upload-icon">📤</div>
+                    <div class="upload-icon">Upload</div>
                     <p>Click or drag an image here</p>
                     <p style="color: #999; font-size: 14px; margin-top: 10px;">Supports PNG, JPG</p>
                 </div>
@@ -51,8 +51,7 @@
                 <!-- Mobile camera capture button (shown only on mobile) -->
                 <div class="camera-button-container" style="display: none;">
                     <button class="camera-btn" id="cameraBtn">
-                        <span class="btn-icon">📷</span>
-                        Take Photo
+                        Capture
                     </button>
                 </div>
                 
@@ -70,11 +69,9 @@
                     <p class="processing-text" id="processingText">Analyzing image...</p>
                     <div class="error-actions" id="errorActions" style="display: none;">
                         <button class="btn try-again-btn" id="tryAgainBtn">
-                            <span class="btn-icon">↻</span>
-                            Try Again
+                            Retry
                         </button>
                         <button class="btn cancel-btn" id="cancelBtn">
-                            <span class="btn-icon">✕</span>
                             Cancel
                         </button>
                     </div>
@@ -97,7 +94,7 @@
                     
                     <div class="result-controls">
                         <div class="prompt-container">
-                            <label for="promptText">📝 Prompt:</label>
+                            <label for="promptText">Prompt:</label>
                             <textarea class="prompt-text" id="promptText" rows="5"></textarea>
                         </div>
                         
@@ -116,15 +113,12 @@
                         
                         <div class="action-buttons">
                             <button class="btn new-btn" id="newBtn">
-                                <span class="btn-icon">🔄</span>
                                 New
                             </button>
                             <button class="btn reanalyze-btn" id="reanalyzeBtn">
-                                <span class="btn-icon">↻</span>
                                 Re-analyze
                             </button>
                             <button class="btn regenerate-btn" id="regenerateBtn">
-                                <span class="btn-icon">✨</span>
                                 Regenerate
                             </button>
                         </div>
@@ -133,7 +127,7 @@
                 
                 <!-- Image History -->
                 <div class="history-section">
-                    <h3>📚 Image History (Last 10)</h3>
+                    <h3>Image History (Last 10)</h3>
                     <div class="history-container" id="historyContainer">
                         <!-- History items will be added here -->
                     </div>
