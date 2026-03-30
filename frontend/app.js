@@ -17,6 +17,7 @@ const errorClose = document.getElementById('errorClose');
 const tryAgainBtn = document.getElementById('tryAgainBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const errorActions = document.getElementById('errorActions');
+const downloadBtn = document.getElementById('downloadBtn');
 
 // Processing Elements
 const progressFill = document.getElementById('progressFill');
@@ -37,6 +38,11 @@ let generatedPrompt = null;
 let availableProfiles = [];
 let currentResolution = { width: 1024, height: 1024 };
 let isProcessing = false;
+let imageHistory = [];
+const MAX_HISTORY = 10;
+
+// DOM Elements for history
+const historyContainer = document.getElementById('historyContainer');
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -142,6 +148,84 @@ function resetState() {
     regenerateBtn.disabled = true;
     hideError();
     resetProgress();
+}
+
+// Image History Functions
+function addToHistory(imageSrc) {
+    // Check if image already exists in history
+    const existingIndex = imageHistory.findIndex(item => item.src === imageSrc);
+    
+    if (existingIndex !== -1) {
+        // Move to front if already exists
+        const item = imageHistory.splice(existingIndex, 1)[0];
+        imageHistory.unshift(item);
+    } else {
+        // Add new image to front
+        imageHistory.unshift({ src: imageSrc });
+        
+        // Remove oldest if exceeds max
+        if (imageHistory.length > MAX_HISTORY) {
+            imageHistory.pop();
+        }
+    }
+    
+    renderHistory();
+}
+
+function renderHistory() {
+    historyContainer.innerHTML = '';
+    
+    imageHistory.forEach((item, index) => {
+        const historyItem = document.createElement('div');
+        historyItem.className = 'history-item' + (index === 0 ? ' active' : '');
+        
+        const img = document.createElement('img');
+        img.src = item.src;
+        img.alt = 'History image';
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-btn';
+        removeBtn.innerHTML = '✕';
+        removeBtn.onclick = (e) => {
+            e.stopPropagation();
+            removeFromHistory(index);
+        };
+        
+        historyItem.appendChild(img);
+        historyItem.appendChild(removeBtn);
+        
+        historyItem.onclick = () => {
+            // Load this image as the current result
+            const resultImage = document.getElementById('resultImage');
+            resultImage.src = item.src;
+            resultImage.onload = () => {
+                resultImage.style.display = 'block';
+                regenerateBtn.disabled = false;
+            };
+            
+            // Update active state
+            renderHistory();
+        };
+        
+        historyContainer.appendChild(historyItem);
+    });
+}
+
+function removeFromHistory(index) {
+    imageHistory.splice(index, 1);
+    renderHistory();
+    
+    // If we removed the current result, clear it
+    if (index === 0) {
+        const resultImage = document.getElementById('resultImage');
+        resultImage.style.display = 'none';
+        resultImage.src = '';
+    }
+}
+
+function clearHistory() {
+    imageHistory = [];
+    renderHistory();
 }
 
 function resetProgress() {
@@ -261,9 +345,11 @@ async function generateImage() {
         const resultImage = document.getElementById('resultImage');
         resultImage.src = data.image;
         resultImage.onload = () => {
-            resultImage.style.display = 'block';
-            regenerateBtn.disabled = false;
-            progressFill.style.width = '100%';
+        resultImage.style.display = 'block';
+        regenerateBtn.disabled = false;
+        progressFill.style.width = '100%';
+        // Add to history
+        addToHistory(data.image);
         };
         
     } catch (err) {
@@ -344,10 +430,12 @@ regenerateBtn.addEventListener('click', async () => {
         const resultImage = document.getElementById('resultImage');
         resultImage.src = data.image;
         resultImage.onload = () => {
-            resultImage.style.display = 'block';
-            regenerateBtn.disabled = false;
-            progressFill.style.width = '100%';
-            processingText.textContent = 'Generation complete';
+        resultImage.style.display = 'block';
+        regenerateBtn.disabled = false;
+        progressFill.style.width = '100%';
+        processingText.textContent = 'Generation complete';
+        // Add to history
+        addToHistory(data.image);
         };
         
     } catch (err) {
@@ -369,6 +457,19 @@ newBtn.addEventListener('click', () => {
 resolutionSelect.addEventListener('change', (e) => {
     const [width, height] = e.target.value.split('x').map(Number);
     currentResolution = { width, height };
+});
+
+// Download button handler
+downloadBtn.addEventListener('click', () => {
+    const resultImage = document.getElementById('resultImage');
+    if (resultImage.src) {
+        const link = document.createElement('a');
+        link.href = resultImage.src;
+        link.download = `generated-image-${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
 });
 
 // Error handling

@@ -77,6 +77,13 @@
                 <div class="result-section">
                     <div class="result-image-container">
                         <img id="resultImage" alt="Generated">
+                        <button class="download-btn" id="downloadBtn" title="Download image">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                        </button>
                     </div>
                     
                     <div class="result-controls">
@@ -112,6 +119,14 @@
                                 Regenerate
                             </button>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Image History -->
+                <div class="history-section">
+                    <h3>📚 Image History (Last 10)</h3>
+                    <div class="history-container" id="historyContainer">
+                        <!-- History items will be added here -->
                     </div>
                 </div>
             </div>
