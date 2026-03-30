@@ -14,6 +14,9 @@ const resolutionSelect = document.getElementById('resolutionSelect');
 const errorContainer = document.getElementById('errorContainer');
 const errorMessage = document.getElementById('errorMessage');
 const errorClose = document.getElementById('errorClose');
+const tryAgainBtn = document.getElementById('tryAgainBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+const errorActions = document.getElementById('errorActions');
 
 // Processing Elements
 const progressFill = document.getElementById('progressFill');
@@ -179,6 +182,7 @@ async function startProcessing() {
     isProcessing = true;
     showScreen(2);
     resetProgress();
+    hideErrorActions();
     
     try {
         // Step 1: Analyze image
@@ -197,6 +201,7 @@ async function startProcessing() {
         console.error('Processing failed:', err);
         showError(err.message || 'Processing failed. Please try again.');
         isProcessing = false;
+        showErrorActions();
     }
 }
 
@@ -384,3 +389,24 @@ document.addEventListener('click', (e) => {
         hideError();
     }
 });
+
+// Try again button handler
+tryAgainBtn.addEventListener('click', () => {
+    hideErrorActions();
+    startProcessing();
+});
+
+// Cancel button handler
+cancelBtn.addEventListener('click', () => {
+    hideErrorActions();
+    resetState();
+    showScreen(1);
+});
+
+function showErrorActions() {
+    errorActions.style.display = 'flex';
+}
+
+function hideErrorActions() {
+    errorActions.style.display = 'none';
+}
