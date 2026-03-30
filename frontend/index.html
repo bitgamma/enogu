@@ -10,28 +10,31 @@
     <div class="container">
         <h1>🎨 Image Generator</h1>
         
-        <!-- Progress Indicator -->
-        <div class="progress-indicator">
-            <div class="step active" data-step="1">
-                <div class="step-number">1</div>
-                <div class="step-label">Setup</div>
+        <!-- Progress Bar -->
+        <div class="progress-bar-container">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
             </div>
-            <div class="step-line"></div>
-            <div class="step" data-step="2">
-                <div class="step-number">2</div>
-                <div class="step-label">Analyze</div>
-            </div>
-            <div class="step-line"></div>
-            <div class="step" data-step="3">
-                <div class="step-number">3</div>
-                <div class="step-label">Generate</div>
+            <div class="progress-steps">
+                <div class="progress-step active" id="stepIndicator1">
+                    <div class="step-dot"></div>
+                    <div class="step-text">Select Profile & Image</div>
+                </div>
+                <div class="progress-step" id="stepIndicator2">
+                    <div class="step-dot"></div>
+                    <div class="step-text">Processing</div>
+                </div>
+                <div class="progress-step" id="stepIndicator3">
+                    <div class="step-dot"></div>
+                    <div class="step-text">Result</div>
+                </div>
             </div>
         </div>
         
-        <!-- Step 1: Setup -->
-        <div class="step-content active" id="step1">
-            <h2>Step 1: Setup</h2>
-            <div class="setup-section">
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Screen 1: Profile Selection & Image Upload -->
+            <div class="screen active" id="screen1">
                 <div class="profile-section">
                     <label for="profileSelect">Select Profile:</label>
                     <select id="profileSelect">
@@ -49,65 +52,65 @@
                 <img id="previewImage" alt="Preview">
             </div>
             
-            <button class="btn next-btn" id="nextBtn">Next: Analyze →</button>
-        </div>
-        
-        <!-- Step 2: Analyze -->
-        <div class="step-content" id="step2">
-            <h2>Step 2: Analyze Image</h2>
-            <div class="analyze-section">
-                <img id="analyzePreview" alt="Preview">
-                <div class="loading" id="loading">
-                    <div class="spinner"></div>
-                    <p id="loadingText">Analyzing image...</p>
-                </div>
-                <div class="error" id="error"></div>
-                <div class="prompt-display" id="promptDisplay">
-                    <h3>📝 Generated Prompt:</h3>
-                    <textarea class="prompt-text" id="promptText" rows="5"></textarea>
+            <!-- Screen 2: Processing (Analysis + Generation) -->
+            <div class="screen" id="screen2">
+                <div class="processing-section">
+                    <div class="processing-spinner">
+                        <div class="spinner"></div>
+                    </div>
+                    <p class="processing-text" id="processingText">Analyzing image...</p>
                 </div>
             </div>
             
-            <div class="step-buttons">
-                <button class="btn prev-btn" id="prevBtn">← Back</button>
-                <button class="btn secondary-btn" id="reanalyzeBtn">↻ Re-analyze</button>
-                <button class="btn next-btn" id="generateBtn" disabled>Next: Generate →</button>
+            <!-- Screen 3: Result -->
+            <div class="screen" id="screen3">
+                <div class="result-section">
+                    <div class="result-image-container">
+                        <img id="resultImage" alt="Generated">
+                    </div>
+                    
+                    <div class="result-controls">
+                        <div class="prompt-container">
+                            <label for="promptText">📝 Prompt:</label>
+                            <textarea class="prompt-text" id="promptText" rows="5"></textarea>
+                        </div>
+                        
+                        <div class="resolution-selector">
+                            <label for="resolutionSelect">Resolution:</label>
+                            <select id="resolutionSelect">
+                                <option value="1024x1024">1024 × 1024 (1:1)</option>
+                                <option value="1024x768">1024 × 768 (4:3 Landscape)</option>
+                                <option value="768x1024">768 × 1024 (4:3 Portrait)</option>
+                                <option value="1280x720">1280 × 720 (16:9 Landscape)</option>
+                                <option value="720x1280">720 × 1280 (16:9 Portrait)</option>
+                                <option value="1536x688">1536 × 688 (20:9 Landscape)</option>
+                                <option value="688x1536">688 × 1536 (20:9 Portrait)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="action-buttons">
+                            <button class="btn new-btn" id="newBtn">
+                                <span class="btn-icon">🔄</span>
+                                New
+                            </button>
+                            <button class="btn reanalyze-btn" id="reanalyzeBtn">
+                                <span class="btn-icon">↻</span>
+                                Re-analyze
+                            </button>
+                            <button class="btn regenerate-btn" id="regenerateBtn">
+                                <span class="btn-icon">✨</span>
+                                Regenerate
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <!-- Step 3: Generate -->
-        <div class="step-content" id="step3">
-            <h2>Step 3: Generate Image</h2>
-            <div class="generate-section">
-                <div class="loading" id="generateLoading">
-                    <div class="spinner"></div>
-                    <p id="generateLoadingText">Generating image...</p>
-                </div>
-                <div class="error" id="generateError"></div>
-                
-                <div class="resolution-selector">
-                    <label for="resolutionSelect">Resolution:</label>
-                    <select id="resolutionSelect">
-                        <option value="1024x1024">1024 × 1024 (1:1)</option>
-                        <option value="1024x768">1024 × 768 (4:3 Landscape)</option>
-                        <option value="768x1024">768 × 1024 (4:3 Portrait)</option>
-                        <option value="1280x720">1280 × 720 (16:9 Landscape)</option>
-                        <option value="720x1280">720 × 1280 (16:9 Portrait)</option>
-                        <option value="1536x688">1536 × 688 (20:9 Landscape)</option>
-                        <option value="688x1536">688 × 1536 (20:9 Portrait)</option>
-                    </select>
-                </div>
-                
-                <div class="result-section" id="resultSection">
-                    <h3>✨ Generated Result:</h3>
-                    <img id="resultImage" alt="Generated">
-                </div>
-            </div>
-            
-            <div class="step-buttons">
-                <button class="btn prev-btn" id="prev2Btn">← Back</button>
-                <button class="btn next-btn" id="regenerateBtn" disabled>Regenerate</button>
-            </div>
+        <!-- Error Display -->
+        <div class="error-container" id="errorContainer">
+            <div class="error-message" id="errorMessage"></div>
+            <button class="error-close" id="errorClose">✕</button>
         </div>
     </div>
     

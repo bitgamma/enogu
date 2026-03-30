@@ -1,35 +1,39 @@
 // Image Generator Frontend
-// Step-based navigation with profile selection and image upload
+// Streamlined single-screen flow with auto-trigger analysis and generation
 
+// DOM Elements
 const profileSelect = document.getElementById('profileSelect');
 const uploadSection = document.getElementById('uploadSection');
 const fileInput = document.getElementById('fileInput');
 const previewImage = document.getElementById('previewImage');
-const analyzePreview = document.getElementById('analyzePreview');
-const nextBtn = document.getElementById('nextBtn');
-const prevBtn = document.getElementById('prevBtn');
-const prev2Btn = document.getElementById('prev2Btn');
-const generateBtn = document.getElementById('generateBtn');
-const regenerateBtn = document.getElementById('regenerateBtn');
-const loading = document.getElementById('loading');
-const loadingText = document.getElementById('loadingText');
-const error = document.getElementById('error');
-const promptDisplay = document.getElementById('promptDisplay');
-const promptText = document.getElementById('promptText');
+const newBtn = document.getElementById('newBtn');
 const reanalyzeBtn = document.getElementById('reanalyzeBtn');
-const generateLoading = document.getElementById('generateLoading');
-const generateLoadingText = document.getElementById('generateLoadingText');
-const generateError = document.getElementById('generateError');
-const resultSection = document.getElementById('resultSection');
-const resultImage = document.getElementById('resultImage');
+const regenerateBtn = document.getElementById('regenerateBtn');
+const promptText = document.getElementById('promptText');
 const resolutionSelect = document.getElementById('resolutionSelect');
+const errorContainer = document.getElementById('errorContainer');
+const errorMessage = document.getElementById('errorMessage');
+const errorClose = document.getElementById('errorClose');
 
-let currentStep = 1;
+// Processing Elements
+const progressFill = document.getElementById('progressFill');
+const stepIndicator1 = document.getElementById('stepIndicator1');
+const stepIndicator2 = document.getElementById('stepIndicator2');
+const stepIndicator3 = document.getElementById('stepIndicator3');
+const processingText = document.getElementById('processingText');
+
+// Screens
+const screen1 = document.getElementById('screen1');
+const screen2 = document.getElementById('screen2');
+const screen3 = document.getElementById('screen3');
+
+// State
+let currentProfile = null;
 let selectedFile = null;
 let generatedPrompt = null;
-let currentProfile = null;
 let availableProfiles = [];
 let currentResolution = { width: 1024, height: 1024 };
+let isProcessing = false;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -58,10 +62,12 @@ async function loadProfiles() {
                 }
             });
         } else {
+            showError('No profiles available');
             profileSelect.innerHTML = '<option value="">No profiles available</option>';
         }
     } catch (err) {
         console.error('Failed to load profiles:', err);
+        showError('Failed to load profiles. Please refresh the page.');
         profileSelect.innerHTML = '<option value="">Error loading profiles</option>';
     }
 }
@@ -103,77 +109,101 @@ fileInput.addEventListener('change', (e) => {
 
 function handleFile(file) {
     if (!file.type.startsWith('image/')) {
-        showError('Please select an image file', error);
+        showError('Please select an image file (PNG or JPG)');
         return;
     }
+    
+    // Reset state
+    resetState();
     
     selectedFile = file;
     const reader = new FileReader();
     reader.onload = (e) => {
         previewImage.src = e.target.result;
         previewImage.style.display = 'block';
-        analyzePreview.src = e.target.result;
-        analyzePreview.style.display = 'block';
-        hideError(error);
+        
+        // Auto-start analysis and generation
+        startProcessing();
     };
     reader.readAsDataURL(file);
 }
 
-// Step navigation
-function goToStep(step) {
-    // Update step content visibility
-    document.querySelectorAll('.step-content').forEach((el, index) => {
-        el.classList.toggle('active', index + 1 === step);
-    });
-    
-    // Update progress indicator
-    document.querySelectorAll('.step').forEach((el, index) => {
-        el.classList.toggle('active', index + 1 === step);
-        el.classList.toggle('completed', index + 1 < step);
-    });
-    
-    currentStep = step;
+function resetState() {
+    selectedFile = null;
+    generatedPrompt = null;
+    promptText.value = '';
+    previewImage.style.display = 'none';
+    previewImage.src = '';
+    document.getElementById('resultImage').style.display = 'none';
+    document.getElementById('resultImage').src = '';
+    regenerateBtn.disabled = true;
+    hideError();
+    resetProgress();
 }
 
-// Step 1 -> Step 2
-nextBtn.addEventListener('click', async () => {
+function resetProgress() {
+    progressFill.style.width = '0%';
+    stepIndicator1.classList.add('active');
+    stepIndicator1.classList.remove('completed');
+    stepIndicator2.classList.remove('active', 'completed');
+    stepIndicator3.classList.remove('active', 'completed');
+}
+
+// Screen navigation
+function showScreen(screenNumber) {
+    screen1.classList.remove('active');
+    screen2.classList.remove('active');
+    screen3.classList.remove('active');
+    
+    if (screenNumber === 1) {
+        screen1.classList.add('active');
+    } else if (screenNumber === 2) {
+        screen2.classList.add('active');
+    } else if (screenNumber === 3) {
+        screen3.classList.add('active');
+    }
+}
+
+// Start the processing flow (analyze + generate)
+async function startProcessing() {
     if (!currentProfile) {
-        showError('Please select a profile', error);
+        showError('Please select a profile first');
         return;
     }
     
     if (!selectedFile) {
-        showError('Please upload an image', error);
+        showError('Please upload an image first');
         return;
     }
     
-    await analyzeImage();
-});
-
-// Step 2 -> Step 1 (back)
-prevBtn.addEventListener('click', () => {
-    goToStep(1);
-});
-
-// Step 2 -> Step 3
-generateBtn.addEventListener('click', async () => {
-    await generateImage();
-});
-
-// Step 3 -> Step 2 (back)
-prev2Btn.addEventListener('click', () => {
-    goToStep(2);
-});
-
-// Step 3 -> Regenerate
-regenerateBtn.addEventListener('click', async () => {
-    await generateImage();
-});
+    isProcessing = true;
+    showScreen(2);
+    resetProgress();
+    
+    try {
+        // Step 1: Analyze image
+        await analyzeImage();
+        
+        // Step 2: Generate image
+        await generateImage();
+        
+        // Step 3: Show result
+        showScreen(3);
+        progressFill.style.width = '100%';
+        stepIndicator3.classList.add('active', 'completed');
+        isProcessing = false;
+        
+    } catch (err) {
+        console.error('Processing failed:', err);
+        showError(err.message || 'Processing failed. Please try again.');
+        isProcessing = false;
+    }
+}
 
 async function analyzeImage() {
-    showLoading(loading, loadingText, 'Analyzing image...');
-    hideError(error);
-    promptDisplay.style.display = 'none';
+    processingText.textContent = 'Analyzing image with LLM...';
+    progressFill.style.width = '50%';
+    stepIndicator2.classList.add('active');
     
     const formData = new FormData();
     formData.append('file', selectedFile);
@@ -193,41 +223,102 @@ async function analyzeImage() {
         
         generatedPrompt = data.prompt;
         promptText.value = generatedPrompt;
-        promptDisplay.style.display = 'block';
-        generateBtn.disabled = false;
         
-        // Move to next step
-        goToStep(2);
+        // Move to generation
+        processingText.textContent = 'Generating image...';
         
     } catch (err) {
-        showError(err.message, error);
-    } finally {
-        hideLoading(loading, loadingText);
+        throw err;
     }
 }
 
-// Re-analyze button handler
-reanalyzeBtn.addEventListener('click', async () => {
-    // Update generatedPrompt with the edited value
-    generatedPrompt = promptText.value;
-    
-    // Re-run analysis with the same image
-    await analyzeImage();
-});
-
-// Resolution selector change handler
-resolutionSelect.addEventListener('change', (e) => {
-    const [width, height] = e.target.value.split('x').map(Number);
-    currentResolution = { width, height };
-});
-
 async function generateImage() {
-    showLoading(generateLoading, generateLoadingText, 'Generating image... This may take a moment.');
-    hideError(generateError);
-    resultSection.style.display = 'none';
+    progressFill.style.width = '75%';
+    
+    const formData = new FormData();
+    formData.append('prompt', promptText.value);
+    formData.append('profile', currentProfile);
+    formData.append('width', currentResolution.width);
+    formData.append('height', currentResolution.height);
+    
+    try {
+        const response = await fetch('/api/generate', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.detail || 'Generation failed');
+        }
+        
+        const resultImage = document.getElementById('resultImage');
+        resultImage.src = data.image;
+        resultImage.onload = () => {
+            resultImage.style.display = 'block';
+            regenerateBtn.disabled = false;
+            progressFill.style.width = '100%';
+        };
+        
+    } catch (err) {
+        throw err;
+    }
+}
+
+// Re-analyze button handler - only re-analyze, don't regenerate
+reanalyzeBtn.addEventListener('click', async () => {
+    if (isProcessing) return;
+    
+    isProcessing = true;
+    reanalyzeBtn.disabled = true;
+    
+    try {
+        processingText.textContent = 'Re-analyzing image with LLM...';
+        progressFill.style.width = '50%';
+        stepIndicator2.classList.add('active');
+        
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('profile', currentProfile);
+        
+        const response = await fetch('/api/analyze', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.detail || 'Analysis failed');
+        }
+        
+        generatedPrompt = data.prompt;
+        promptText.value = generatedPrompt;
+        
+        processingText.textContent = 'Analysis complete';
+        progressFill.style.width = '50%';
+        
+    } catch (err) {
+        console.error('Re-analysis failed:', err);
+        showError(err.message || 'Re-analysis failed. Please try again.');
+    } finally {
+        isProcessing = false;
+        reanalyzeBtn.disabled = false;
+    }
+});
+
+// Regenerate button handler - only regenerate, don't re-analyze
+regenerateBtn.addEventListener('click', async () => {
+    if (isProcessing) return;
+    
+    isProcessing = true;
     regenerateBtn.disabled = true;
     
     try {
+        processingText.textContent = 'Generating image...';
+        progressFill.style.width = '75%';
+        
         const formData = new FormData();
         formData.append('prompt', promptText.value);
         formData.append('profile', currentProfile);
@@ -245,34 +336,51 @@ async function generateImage() {
             throw new Error(data.detail || 'Generation failed');
         }
         
+        const resultImage = document.getElementById('resultImage');
         resultImage.src = data.image;
-        resultSection.style.display = 'block';
-        regenerateBtn.disabled = false;
-        
-        // Move to next step
-        goToStep(3);
+        resultImage.onload = () => {
+            resultImage.style.display = 'block';
+            regenerateBtn.disabled = false;
+            progressFill.style.width = '100%';
+            processingText.textContent = 'Generation complete';
+        };
         
     } catch (err) {
-        showError(err.message, generateError);
+        console.error('Regeneration failed:', err);
+        showError(err.message || 'Regeneration failed. Please try again.');
     } finally {
-        hideLoading(generateLoading, generateLoadingText);
+        isProcessing = false;
+        regenerateBtn.disabled = false;
     }
+});
+
+// New button handler - go back to first screen
+newBtn.addEventListener('click', () => {
+    resetState();
+    showScreen(1);
+});
+
+// Resolution selector change handler
+resolutionSelect.addEventListener('change', (e) => {
+    const [width, height] = e.target.value.split('x').map(Number);
+    currentResolution = { width, height };
+});
+
+// Error handling
+function showError(message) {
+    errorMessage.textContent = message;
+    errorContainer.classList.add('show');
 }
 
-function showLoading(loadingEl, textEl, text) {
-    textEl.textContent = text;
-    loadingEl.classList.add('active');
+function hideError() {
+    errorContainer.classList.remove('show');
 }
 
-function hideLoading(loadingEl, textEl) {
-    loadingEl.classList.remove('active');
-}
+errorClose.addEventListener('click', hideError);
 
-function showError(message, errorEl) {
-    errorEl.textContent = message;
-    errorEl.style.display = 'block';
-}
-
-function hideError(errorEl) {
-    errorEl.style.display = 'none';
-}
+// Close error on click outside
+document.addEventListener('click', (e) => {
+    if (e.target === errorContainer) {
+        hideError();
+    }
+});
