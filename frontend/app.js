@@ -307,7 +307,9 @@ async function analyzeImage() {
         const data = await response.json();
         
         if (!response.ok) {
-            throw new Error(data.detail || 'Analysis failed');
+            // Use error_reason if provided, otherwise fall back to detail
+            const errorMessage = data.error_reason || data.detail || 'Analysis failed';
+            throw new Error(errorMessage);
         }
         
         generatedPrompt = data.prompt;
@@ -381,7 +383,9 @@ reanalyzeBtn.addEventListener('click', async () => {
         const data = await response.json();
         
         if (!response.ok) {
-            throw new Error(data.detail || 'Analysis failed');
+            // Use error_reason if provided, otherwise fall back to detail
+            const errorMessage = data.detail || 'Analysis failed';
+            throw new Error(errorMessage);
         }
         
         generatedPrompt = data.prompt;

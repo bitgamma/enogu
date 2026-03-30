@@ -159,17 +159,27 @@ async def llm_analyze_image(image: Image.Image, profile: dict) -> dict:
     
     result = response.json()
     content = result["choices"][0]["message"]["content"]
-    
+
     content = content.strip()
-    if content.startswith("```") and content.endswith("```"):
+    
+    # Try to extract JSON from markdown code blocks
+    if "```json" in content:
+        # Extract content between ```json and ```
+        start_idx = content.find("```json") + 7
+        end_idx = content.find("```", start_idx)
+        if end_idx != -1:
+            content = content[start_idx:end_idx].strip()
+    elif content.startswith("```") and content.endswith("```"):
+        # Fallback: strip generic code block markers
         content = content[3:-3].strip()
+        # Remove 'json' prefix if present
         if content.startswith("json"):
             content = content[4:].strip()
     
     try:
         return json.loads(content)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=500, detail="LLM returned invalid JSON")
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=500, detail=f"LLM returned invalid JSON: {str(e)}")
 
 
 async def execute_comfyui_workflow(prompt: str, profile: dict, width: int = 768, height: int = 1024) -> str:
@@ -272,7 +282,9 @@ async def analyze_image(
         result = await llm_analyze_image(image, profile_config)
         
         if result.get("status") != "OK":
-            raise HTTPException(status_code=400, detail=result.get("prompt", "Could not analyze image"))
+            # Return error_reason if provided by LLM, otherwise use prompt field
+            error_reason = result.get("error_reason", result.get("prompt", "Could not analyze image"))
+            raise HTTPException(status_code=400, detail=error_reason)
         
         return JSONResponse(content={
             "success": True,
