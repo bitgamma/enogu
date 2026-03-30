@@ -483,6 +483,7 @@ function showError(message) {
 }
 
 function hideError() {
+    errorMessage.textContent = "";
     errorContainer.classList.remove('show');
 }
 
