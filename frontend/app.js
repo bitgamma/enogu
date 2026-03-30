@@ -22,12 +22,14 @@ const generateLoadingText = document.getElementById('generateLoadingText');
 const generateError = document.getElementById('generateError');
 const resultSection = document.getElementById('resultSection');
 const resultImage = document.getElementById('resultImage');
+const resolutionSelect = document.getElementById('resolutionSelect');
 
 let currentStep = 1;
 let selectedFile = null;
 let generatedPrompt = null;
 let currentProfile = null;
 let availableProfiles = [];
+let currentResolution = { width: 1024, height: 1024 };
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -213,6 +215,12 @@ reanalyzeBtn.addEventListener('click', async () => {
     await analyzeImage();
 });
 
+// Resolution selector change handler
+resolutionSelect.addEventListener('change', (e) => {
+    const [width, height] = e.target.value.split('x').map(Number);
+    currentResolution = { width, height };
+});
+
 async function generateImage() {
     showLoading(generateLoading, generateLoadingText, 'Generating image... This may take a moment.');
     hideError(generateError);
@@ -223,6 +231,8 @@ async function generateImage() {
         const formData = new FormData();
         formData.append('prompt', promptText.value);
         formData.append('profile', currentProfile);
+        formData.append('width', currentResolution.width);
+        formData.append('height', currentResolution.height);
         
         const response = await fetch('/api/generate', {
             method: 'POST',

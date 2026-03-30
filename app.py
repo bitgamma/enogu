@@ -147,9 +147,9 @@ async def llm_analyze_image(image: Image.Image, profile: dict) -> dict:
         raise HTTPException(status_code=500, detail="LLM returned invalid JSON")
 
 
-async def execute_comfyui_workflow(prompt: str, profile: dict) -> str:
+async def execute_comfyui_workflow(prompt: str, profile: dict, width: int = 768, height: int = 1024) -> str:
     """
-    Execute ComfyUI workflow with the given prompt.
+    Execute ComfyUI workflow with the given prompt and custom resolution.
     Returns the base64 encoded result image.
     """
     workflow = get_workflow(profile["name"])
@@ -161,6 +161,16 @@ async def execute_comfyui_workflow(prompt: str, profile: dict) -> str:
             if "text" in inputs and "{PROMPT}" in str(inputs["text"]):
                 inputs["text"] = prompt
                 break
+    
+    # Update EmptyLatentImage node with custom resolution
+    for node_id, node_data in workflow.items():
+        if node_data.get("class_type") == "EmptyLatentImage":
+            inputs = node_data.get("inputs", {})
+            if "width" in inputs:
+                inputs["width"] = width
+            if "height" in inputs:
+                inputs["height"] = height
+            break
     
     # Queue the workflow
     queue_response = requests.post(
@@ -253,11 +263,13 @@ async def analyze_image(
 @app.post("/api/generate")
 async def generate_image(
     prompt: str = Form(...),
-    profile: str = Form(...)
+    profile: str = Form(...),
+    width: int = Form(1024),
+    height: int = Form(1024)
 ):
     """
     Generate image from prompt using ComfyUI.
-    Uses the specified profile configuration.
+    Uses the specified profile configuration and custom resolution.
     """
     try:
         profile_config = get_profile(profile)
@@ -266,7 +278,7 @@ async def generate_image(
         if not prompt_text:
             raise HTTPException(status_code=400, detail="No prompt provided")
         
-        image_base64 = await execute_comfyui_workflow(prompt_text, profile_config)
+        image_base64 = await execute_comfyui_workflow(prompt_text, profile_config, width, height)
         
         return JSONResponse(content={
             "success": True,

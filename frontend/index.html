@@ -84,6 +84,20 @@
                     <p id="generateLoadingText">Generating image...</p>
                 </div>
                 <div class="error" id="generateError"></div>
+                
+                <div class="resolution-selector">
+                    <label for="resolutionSelect">Resolution:</label>
+                    <select id="resolutionSelect">
+                        <option value="1024x1024">1024 × 1024 (1:1)</option>
+                        <option value="1024x768">1024 × 768 (4:3 Landscape)</option>
+                        <option value="768x1024">768 × 1024 (4:3 Portrait)</option>
+                        <option value="1280x720">1280 × 720 (16:9 Landscape)</option>
+                        <option value="720x1280">720 × 1280 (16:9 Portrait)</option>
+                        <option value="1536x688">1536 × 688 (20:9 Landscape)</option>
+                        <option value="688x1536">688 × 1536 (20:9 Portrait)</option>
+                    </select>
+                </div>
+                
                 <div class="result-section" id="resultSection">
                     <h3>✨ Generated Result:</h3>
                     <img id="resultImage" alt="Generated">
