@@ -8,9 +8,7 @@ import asyncio
 import base64
 import io
 import json
-import os
 from pathlib import Path
-from typing import Optional
 
 import requests
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -25,6 +23,11 @@ app = FastAPI(title="Image Generation Webapp")
 BASE_DIR = Path(__file__).parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 PROFILES_DIR = BASE_DIR / "profiles"
+CONFIG_FILE = BASE_DIR / "config.json"
+
+# Load global configuration
+with open(CONFIG_FILE) as f:
+    CONFIG = json.load(f)
 
 # CORS configuration
 app.add_middleware(
@@ -48,23 +51,25 @@ async def index():
 
 def get_profile(profile_name: str) -> dict:
     """Load a profile configuration by name."""
-    profile_path = PROFILES_DIR / profile_name / "config.json"
-    if not profile_path.exists():
-        raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
+    # Load global connection parameters from providers section
+    providers = CONFIG.get("providers", {})
+    profile_settings = {
+        "comfyui_endpoint": providers["comfyui_endpoint"],
+        "llm_endpoint": providers["llm_endpoint"],
+        "llm_apikey": providers["llm_apikey"],
+        "llm_model": providers["llm_model"],
+        "name": profile_name
+    }
     
-    with open(profile_path) as f:
-        config = json.load(f)
-    
-    config["name"] = profile_name
-    
-    prompt_file_path = profile_path.parent / "extraction_prompt.txt"
+    # Load extraction prompt from profile directory
+    prompt_file_path = PROFILES_DIR / profile_name / "extraction_prompt.txt"
     if prompt_file_path.exists():
         with open(prompt_file_path) as f:
-            config["extraction_prompt"] = f.read().strip()
+            profile_settings["extraction_prompt"] = f.read().strip()
     else:
         raise HTTPException(status_code=404, detail=f"Prompt file extraction_prompt.txt not found")
     
-    return config
+    return profile_settings
 
 
 def get_workflow(profile_name: str) -> dict:
@@ -83,8 +88,8 @@ def list_profiles() -> list:
     if PROFILES_DIR.exists():
         for item in PROFILES_DIR.iterdir():
             if item.is_dir():
-                config_path = item / "config.json"
-                if config_path.exists():
+                prompt_file_path = item / "extraction_prompt.txt"
+                if prompt_file_path.exists():
                     profiles.append({"name": item.name})
     return profiles
 
@@ -330,4 +335,7 @@ async def generate_image(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    server_config = CONFIG.get("server", {})
+    host = server_config.get("host", "0.0.0.0")
+    port = server_config.get("port", 8000)
+    uvicorn.run(app, host=host, port=port)
