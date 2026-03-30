@@ -431,6 +431,36 @@ h1 {
     color: white;
 }
 
+.camera-button-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    margin-bottom: 16px;
+}
+
+.camera-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 18px 32px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    flex: 1;
+    min-width: 150px;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.camera-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
 .regenerate-btn:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(79, 172, 254, 0.4);

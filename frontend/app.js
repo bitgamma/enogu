@@ -5,6 +5,8 @@
 const profileSelect = document.getElementById('profileSelect');
 const uploadSection = document.getElementById('uploadSection');
 const fileInput = document.getElementById('fileInput');
+const cameraInput = document.getElementById('cameraInput');
+const cameraBtn = document.getElementById('cameraBtn');
 const previewImage = document.getElementById('previewImage');
 const newBtn = document.getElementById('newBtn');
 const reanalyzeBtn = document.getElementById('reanalyzeBtn');
@@ -47,6 +49,7 @@ const historyContainer = document.getElementById('historyContainer');
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
     await loadProfiles();
+    setupMobileCameraButton();
 });
 
 // Load available profiles from backend
@@ -115,6 +118,30 @@ fileInput.addEventListener('change', (e) => {
         handleFile(e.target.files[0]);
     }
 });
+
+// Camera input change handler
+cameraInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+    }
+});
+
+// Camera button click handler
+cameraBtn.addEventListener('click', () => {
+    cameraInput.click();
+});
+
+// Detect mobile device and show camera button
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           (window.innerWidth <= 768 && 'ontouchstart' in window);
+}
+
+function setupMobileCameraButton() {
+    if (isMobileDevice()) {
+        document.querySelector('.camera-button-container').style.display = 'flex';
+    }
+}
 
 function handleFile(file) {
     if (!file.type.startsWith('image/')) {

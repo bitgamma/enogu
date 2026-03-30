@@ -48,7 +48,16 @@
                     <p style="color: #999; font-size: 14px; margin-top: 10px;">Supports PNG, JPG</p>
                 </div>
                 
+                <!-- Mobile camera capture button (shown only on mobile) -->
+                <div class="camera-button-container" style="display: none;">
+                    <button class="camera-btn" id="cameraBtn">
+                        <span class="btn-icon">📷</span>
+                        Take Photo
+                    </button>
+                </div>
+                
                 <input type="file" id="fileInput" accept="image/*">
+                <input type="file" id="cameraInput" accept="image/*" capture="user" style="display: none;">
                 <img id="previewImage" alt="Preview">
             </div>
             
