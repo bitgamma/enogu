@@ -47,13 +47,20 @@ The frontend consists of three files:
 
 Profiles are configuration units that define:
 
-- LLM endpoint and model settings
-- API key for LLM access
-- ComfyUI server endpoint
 - Workflow JSON for image generation
 - Extraction prompt for image analysis
 
 Each profile is stored in its own directory under `profiles/` with three required files.
+
+### Configuration
+
+`config.json` configures the server:
+
+- Listening host
+- Listening port
+- LLM endpoint and model settings
+- API key for LLM access
+- ComfyUI server endpoint
 
 ## Data Flow
 
