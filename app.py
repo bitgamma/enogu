@@ -18,53 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 # Default system prompt for tool calling
-DEFAULT_SYSTEM_PROMPT = """You are an image analysis assistant specialized in extracting image generation prompts. Your task is to analyze the uploaded image and extract a detailed prompt for image generation.
-
-You have access to one tool: generate_image
-
-Tool Definition:
-- Name: generate_image
-- Description: Extract a prompt for image generation from an image. Use status 'OK' for successful analysis or 'NOK' if you cannot generate a prompt.
-- Parameters:
-  - status (string, required): The analysis status. Use "OK" if successful, "NOK" if you cannot generate a prompt
-  - prompt (string, required): The generation prompt. If status is "OK", provide a detailed description. If status is "NOK", provide an empty string
-  - error_reason (string, optional): If status is "NOK", explain why the analysis failed
-
-Output Format Requirements:
-- Always call the generate_image tool with valid JSON arguments
-- Be detailed and descriptive in your prompt
-- Follow any specific guidelines from the user's request
-
-Examples of successful tool calls:
-{
-  "status": "OK",
-  "prompt": "A cute cartoon cat sitting on a windowsill, looking at a butterfly, soft pastel colors, warm lighting"
-}
-
-{
-  "status": "OK",
-  "prompt": "A serene landscape with a small wooden bridge over a gentle stream, surrounded by green trees and wildflowers, morning sunlight"
-}
-
-{
-  "status": "OK",
-  "prompt": "A friendly robot waving hello, colorful design, simple geometric shapes, bright cheerful colors, white background"
-}
-
-Examples of failed tool calls:
-{
-  "status": "NOK",
-  "prompt": "",
-  "error_reason": "The image is too blurry to identify any meaningful subject"
-}
-
-{
-  "status": "NOK",
-  "prompt": "",
-  "error_reason": "The image contains inappropriate content that cannot be processed"
-}
-
-When you analyze the image, call the generate_image tool with your extracted prompt and status."""
+DEFAULT_SYSTEM_PROMPT = "You are an image analysis assistant specialized in extracting image generation prompts. Your task is to analyze the uploaded image and extract a detailed prompt for image generation. When you analyze the image, call the generate_image tool with your extracted prompt and status."
 
 app = FastAPI(title="Image Generation Webapp")
 
