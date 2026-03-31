@@ -388,12 +388,14 @@ h1 {
     gap: 12px;
     justify-content: center;
     margin-bottom: 16px;
+    flex-wrap: wrap;
 }
 
 .upscale-section label {
     color: #374151;
     font-weight: 500;
     font-size: 14px;
+    white-space: nowrap;
 }
 
 .upscale-section select {
@@ -403,7 +405,9 @@ h1 {
     background: white;
     cursor: pointer;
     transition: border-color 0.2s;
-    min-width: 100px;
+    flex: 1;
+    min-width: 120px;
+    max-width: 100%;
 }
 
 .upscale-section select:focus {
@@ -418,6 +422,7 @@ h1 {
     padding: 12px 20px;
     flex: none;
     min-width: auto;
+    white-space: nowrap;
 }
 
 .upscale-btn:hover:not(:disabled) {
@@ -574,6 +579,24 @@ h1 {
     .error-container {
         width: calc(100% - 40px);
         top: 10px;
+    }
+    
+    /* Upscale section mobile adjustments */
+    .upscale-section {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .upscale-section label {
+        text-align: left;
+    }
+    
+    .upscale-section select {
+        width: 100%;
+    }
+    
+    .upscale-btn {
+        width: 100%;
     }
 }
 
