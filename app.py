@@ -17,6 +17,55 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
+# Default system prompt for tool calling
+DEFAULT_SYSTEM_PROMPT = """You are an image analysis assistant specialized in extracting image generation prompts. Your task is to analyze the uploaded image and extract a detailed prompt for image generation.
+
+You have access to one tool: generate_image
+
+Tool Definition:
+- Name: generate_image
+- Description: Extract a prompt for image generation from an image. Use status 'OK' for successful analysis or 'NOK' if you cannot generate a prompt.
+- Parameters:
+  - status (string, required): The analysis status. Use "OK" if successful, "NOK" if you cannot generate a prompt
+  - prompt (string, required): The generation prompt. If status is "OK", provide a detailed description. If status is "NOK", provide an empty string
+  - error_reason (string, optional): If status is "NOK", explain why the analysis failed
+
+Output Format Requirements:
+- Always call the generate_image tool with valid JSON arguments
+- Be detailed and descriptive in your prompt
+- Follow any specific guidelines from the user's request
+
+Examples of successful tool calls:
+{
+  "status": "OK",
+  "prompt": "A cute cartoon cat sitting on a windowsill, looking at a butterfly, soft pastel colors, warm lighting"
+}
+
+{
+  "status": "OK",
+  "prompt": "A serene landscape with a small wooden bridge over a gentle stream, surrounded by green trees and wildflowers, morning sunlight"
+}
+
+{
+  "status": "OK",
+  "prompt": "A friendly robot waving hello, colorful design, simple geometric shapes, bright cheerful colors, white background"
+}
+
+Examples of failed tool calls:
+{
+  "status": "NOK",
+  "prompt": "",
+  "error_reason": "The image is too blurry to identify any meaningful subject"
+}
+
+{
+  "status": "NOK",
+  "prompt": "",
+  "error_reason": "The image contains inappropriate content that cannot be processed"
+}
+
+When you analyze the image, call the generate_image tool with your extracted prompt and status."""
+
 app = FastAPI(title="Image Generation Webapp")
 
 # Paths
@@ -60,6 +109,9 @@ def get_profile(profile_name: str) -> dict:
         "llm_model": providers["llm_model"],
         "name": profile_name
     }
+    
+    # Load system prompt from config if available, otherwise use default
+    profile_settings["system_prompt"] = providers.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
     
     # Load extraction prompt from profile directory
     prompt_file_path = PROFILES_DIR / profile_name / "extraction_prompt.txt"
@@ -126,15 +178,49 @@ def encode_image_to_base64(image: Image.Image) -> str:
 
 async def llm_analyze_image(image: Image.Image, profile: dict) -> dict:
     """
-    Send image to LLM for analysis.
+    Send image to LLM for analysis using tool calling.
     Returns JSON with 'prompt' and 'status' fields.
     """
     # Resize image to max 1.5 megapixel before sending to LLM
     resized_image = resize_image_for_llm(image)
     base64_image = encode_image_to_base64(resized_image)
     
+    # Define the generate_image tool
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "generate_image",
+                "description": "Extract a prompt for image generation from an image. Use status 'OK' for successful analysis or 'NOK' if you cannot generate a prompt.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "status": {
+                            "type": "string",
+                            "enum": ["OK", "NOK"],
+                            "description": "Analysis status. 'OK' if successful, 'NOK' if the analysis failed"
+                        },
+                        "prompt": {
+                            "type": "string",
+                            "description": "The generation prompt. If status is 'OK', provide a detailed description. If status is 'NOK', provide an empty string"
+                        },
+                        "error_reason": {
+                            "type": "string",
+                            "description": "If status is 'NOK', explain why the analysis failed. Can be omitted if status is 'OK'"
+                        }
+                    },
+                    "required": ["status", "prompt"]
+                }
+            }
+        }
+    ]
+    
     payload = {
         "messages": [
+            {
+                "role": "system",
+                "content": profile.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
+            },
             {
                 "role": "user",
                 "content": [
@@ -143,8 +229,9 @@ async def llm_analyze_image(image: Image.Image, profile: dict) -> dict:
                 ]
             }
         ],
-        "model": profile["llm_model"],
-        "response_format": {"type": "json_object"}
+        "tools": tools,
+        "tool_choice": {"type": "function", "function": {"name": "generate_image"}},
+        "model": profile["llm_model"]
     }
     
     headers = {
@@ -163,28 +250,20 @@ async def llm_analyze_image(image: Image.Image, profile: dict) -> dict:
         raise HTTPException(status_code=500, detail=f"LLM API error: {response.text}")
     
     result = response.json()
-    content = result["choices"][0]["message"]["content"]
-
-    content = content.strip()
+    message = result["choices"][0]["message"]
     
-    # Try to extract JSON from markdown code blocks
-    if "```json" in content:
-        # Extract content between ```json and ```
-        start_idx = content.find("```json") + 7
-        end_idx = content.find("```", start_idx)
-        if end_idx != -1:
-            content = content[start_idx:end_idx].strip()
-    elif content.startswith("```") and content.endswith("```"):
-        # Fallback: strip generic code block markers
-        content = content[3:-3].strip()
-        # Remove 'json' prefix if present
-        if content.startswith("json"):
-            content = content[4:].strip()
+    # Handle tool call response
+    if "tool_calls" in message and message["tool_calls"]:
+        tool_call = message["tool_calls"][0]
+        if tool_call["function"]["name"] == "generate_image":
+            arguments = json.loads(tool_call["function"]["arguments"])
+            return {
+                "status": arguments.get("status", "NOK"),
+                "prompt": arguments.get("prompt", ""),
+                "error_reason": arguments.get("error_reason")
+            }
     
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"LLM returned invalid JSON: {str(e)}")
+    raise HTTPException(status_code=500, detail="LLM did not return a valid tool call")
 
 
 async def execute_comfyui_workflow(prompt: str, profile: dict, width: int = 768, height: int = 1024) -> str:
