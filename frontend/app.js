@@ -11,8 +11,10 @@ const previewImage = document.getElementById('previewImage');
 const newBtn = document.getElementById('newBtn');
 const reanalyzeBtn = document.getElementById('reanalyzeBtn');
 const regenerateBtn = document.getElementById('regenerateBtn');
+const upscaleBtn = document.getElementById('upscaleBtn');
 const promptText = document.getElementById('promptText');
 const resolutionSelect = document.getElementById('resolutionSelect');
+const upscaleResolutionSelect = document.getElementById('upscaleResolutionSelect');
 const errorContainer = document.getElementById('errorContainer');
 const errorMessage = document.getElementById('errorMessage');
 const errorClose = document.getElementById('errorClose');
@@ -39,9 +41,11 @@ let selectedFile = null;
 let generatedPrompt = null;
 let availableProfiles = [];
 let currentResolution = { width: 1024, height: 1024 };
+let currentSeed = null;
 let isProcessing = false;
 let imageHistory = [];
 const MAX_HISTORY = 10;
+let upscaleResolution = 1024;
 
 // DOM Elements for history
 const historyContainer = document.getElementById('historyContainer');
@@ -167,6 +171,7 @@ function handleFile(file) {
 function resetState() {
     selectedFile = null;
     generatedPrompt = null;
+    currentSeed = null;
     promptText.value = '';
     previewImage.style.display = 'none';
     previewImage.src = '';
@@ -353,7 +358,12 @@ async function analyzeImage() {
     }
 }
 
-async function generateImage() {
+function generateRandomSeed() {
+    // Simple random seed generation (not cryptographically secure)
+    return Math.floor(Math.random() * 2147483647);
+}
+
+async function generateImage(upscale = false) {
     progressFill.style.width = '75%';
     
     const formData = new FormData();
@@ -361,6 +371,22 @@ async function generateImage() {
     formData.append('profile', currentProfile);
     formData.append('width', currentResolution.width);
     formData.append('height', currentResolution.height);
+    
+    // Generate new seed only for plain generation, not for upscaling
+    if (!upscale) {
+        const seed = generateRandomSeed();
+        formData.append('seed', seed);
+        currentSeed = seed;
+    } else if (currentSeed !== null) {
+        // Use existing seed for upscaling
+        formData.append('seed', currentSeed);
+    }
+    
+    // Add upscale parameters if upscaling
+    if (upscale) {
+        formData.append('upscale_switch', true);
+        formData.append('upscale_resolution', upscaleResolution);
+    }
     
     try {
         const response = await fetch('/api/generate', {
@@ -377,11 +403,11 @@ async function generateImage() {
         const resultImage = document.getElementById('resultImage');
         resultImage.src = data.image;
         resultImage.onload = () => {
-        resultImage.style.display = 'block';
-        regenerateBtn.disabled = false;
-        progressFill.style.width = '100%';
-        // Add to history
-        addToHistory(data.image);
+            resultImage.style.display = 'block';
+            regenerateBtn.disabled = false;
+            progressFill.style.width = '100%';
+            // Add to history
+            addToHistory(data.image);
         };
         
     } catch (err) {
@@ -444,33 +470,9 @@ regenerateBtn.addEventListener('click', async () => {
         processingText.textContent = 'Generating image...';
         progressFill.style.width = '75%';
         
-        const formData = new FormData();
-        formData.append('prompt', promptText.value);
-        formData.append('profile', currentProfile);
-        formData.append('width', currentResolution.width);
-        formData.append('height', currentResolution.height);
+        await generateImage(false);
         
-        const response = await fetch('/api/generate', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-            throw new Error(data.detail || 'Generation failed');
-        }
-        
-        const resultImage = document.getElementById('resultImage');
-        resultImage.src = data.image;
-        resultImage.onload = () => {
-        resultImage.style.display = 'block';
-        regenerateBtn.disabled = false;
-        progressFill.style.width = '100%';
         processingText.textContent = 'Generation complete';
-        // Add to history
-        addToHistory(data.image);
-        };
         
     } catch (err) {
         console.error('Regeneration failed:', err);
@@ -479,6 +481,35 @@ regenerateBtn.addEventListener('click', async () => {
         isProcessing = false;
         regenerateBtn.disabled = false;
     }
+});
+
+// Upscale button handler
+upscaleBtn.addEventListener('click', async () => {
+    if (isProcessing) return;
+    
+    isProcessing = true;
+    upscaleBtn.disabled = true;
+    
+    try {
+        processingText.textContent = 'Upscaling image...';
+        progressFill.style.width = '75%';
+        
+        await generateImage(true);
+        
+        processingText.textContent = 'Upscaling complete';
+        
+    } catch (err) {
+        console.error('Upscaling failed:', err);
+        showError(err.message || 'Upscaling failed. Please try again.');
+    } finally {
+        isProcessing = false;
+        upscaleBtn.disabled = false;
+    }
+});
+
+// Upscale resolution selector change handler
+upscaleResolutionSelect.addEventListener('change', (e) => {
+    upscaleResolution = parseInt(e.target.value, 10);
 });
 
 // New button handler - go back to first screen

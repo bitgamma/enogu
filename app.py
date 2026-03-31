@@ -78,8 +78,63 @@ def get_profile(profile_name: str) -> dict:
     return profile_settings
 
 
+def load_mappings(profile_name: str) -> dict:
+    """Load parameter mappings from mappings.json in the profile directory."""
+    mappings_path = PROFILES_DIR / profile_name / "mappings.json"
+    if not mappings_path.exists():
+        return {}
+    
+    with open(mappings_path) as f:
+        return json.load(f)
+
+
+def apply_mappings(workflow: dict, mappings: dict, prompt: str, width: int, height: int, seed: int, upscale_switch: bool, upscale_resolution: int) -> dict:
+    """
+    Apply parameter mappings to the workflow.
+    
+    Mappings format: {"param_name": "node_id"}
+    The node_id is used directly as a key in the workflow to find the node to replace.
+    """
+    workflow = json.loads(json.dumps(workflow))  # Deep copy
+    
+    for param_name, node_id in mappings.items():
+        if node_id not in workflow:
+            continue
+        
+        node = workflow[node_id]
+        node_inputs = node.get("inputs", {})
+        
+        # Determine what value to set based on parameter name
+        if param_name == "prompt":
+            if "text" in node_inputs:
+                node_inputs["text"] = prompt
+        elif param_name == "seed":
+            if "seed" in node_inputs:
+                node_inputs["seed"] = seed
+        elif param_name == "resolution":
+            if "width" in node_inputs:
+                node_inputs["width"] = width
+            if "height" in node_inputs:
+                node_inputs["height"] = height
+        elif param_name == "upscaler_switch":
+            if "switch" in node_inputs:
+                node_inputs["switch"] = upscale_switch
+        elif param_name == "upscale_resolution":
+            if "value" in node_inputs:
+                node_inputs["value"] = upscale_resolution
+    
+    return workflow
+
+
+def get_workflow_with_mappings(profile_name: str, prompt: str, width: int, height: int, seed: int = -1, upscale_switch: bool = False, upscale_resolution: int = 1024) -> dict:
+    """Load workflow and apply parameter mappings."""
+    workflow = get_workflow(profile_name)
+    mappings = load_mappings(profile_name)
+    return apply_mappings(workflow, mappings, prompt, width, height, seed, upscale_switch, upscale_resolution)
+
+
 def get_workflow(profile_name: str) -> dict:
-    """Load a workflow configuration by name."""
+    """Load a workflow configuration by name without applying mappings."""
     workflow_path = PROFILES_DIR / profile_name / "workflow.json"
     if not workflow_path.exists():
         raise HTTPException(status_code=404, detail=f"Workflow for profile '{profile_name}' not found")
@@ -220,30 +275,12 @@ async def llm_analyze_image(image: Image.Image, profile: dict) -> dict:
     raise HTTPException(status_code=500, detail="LLM did not return a valid tool call")
 
 
-async def execute_comfyui_workflow(prompt: str, profile: dict, width: int = 768, height: int = 1024) -> str:
+async def execute_comfyui_workflow(prompt: str, profile: dict, width: int, height: int, seed: int, upscale_switch: bool, upscale_resolution: int) -> str:
     """
     Execute ComfyUI workflow with the given prompt and custom resolution.
     Returns the base64 encoded result image.
     """
-    workflow = get_workflow(profile["name"])
-    
-    # Replace {PROMPT} placeholder in workflow
-    for node_id, node_data in workflow.items():
-        if node_data.get("class_type") == "CLIPTextEncode":
-            inputs = node_data.get("inputs", {})
-            if "text" in inputs and "{PROMPT}" in str(inputs["text"]):
-                inputs["text"] = prompt
-                break
-    
-    # Update EmptyLatentImage node with custom resolution
-    for node_id, node_data in workflow.items():
-        if node_data.get("class_type") == "EmptyLatentImage" or node_data.get("class_type") == "EmptySD3LatentImage":
-            inputs = node_data.get("inputs", {})
-            if "width" in inputs:
-                inputs["width"] = width
-            if "height" in inputs:
-                inputs["height"] = height
-            break
+    workflow = get_workflow_with_mappings(profile["name"], prompt, width, height, seed, upscale_switch, upscale_resolution)
     
     # Queue the workflow
     queue_response = requests.post(
@@ -340,7 +377,10 @@ async def generate_image(
     prompt: str = Form(...),
     profile: str = Form(...),
     width: int = Form(1024),
-    height: int = Form(1024)
+    height: int = Form(1024),
+    seed: int = Form(-1),
+    upscale_switch: bool = Form(False),
+    upscale_resolution: int = Form(1024)
 ):
     """
     Generate image from prompt using ComfyUI.
@@ -353,7 +393,9 @@ async def generate_image(
         if not prompt_text:
             raise HTTPException(status_code=400, detail="No prompt provided")
         
-        image_base64 = await execute_comfyui_workflow(prompt_text, profile_config, width, height)
+        image_base64 = await execute_comfyui_workflow(
+            prompt_text, profile_config, width, height, seed, upscale_switch, upscale_resolution
+        )
         
         return JSONResponse(content={
             "success": True,

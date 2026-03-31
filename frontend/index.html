@@ -99,16 +99,28 @@
                         </div>
                         
                         <div class="resolution-selector">
-                            <label for="resolutionSelect">Resolution:</label>
+                            <label for="resolutionSelect">Aspect Ratio:</label>
                             <select id="resolutionSelect">
-                                <option value="1024x1024">1024 × 1024 (1:1)</option>
-                                <option value="1024x768">1024 × 768 (4:3 Landscape)</option>
-                                <option value="768x1024">768 × 1024 (4:3 Portrait)</option>
-                                <option value="1280x720">1280 × 720 (16:9 Landscape)</option>
-                                <option value="720x1280">720 × 1280 (16:9 Portrait)</option>
-                                <option value="1536x688">1536 × 688 (20:9 Landscape)</option>
-                                <option value="688x1536">688 × 1536 (20:9 Portrait)</option>
+                                <option value="1024x1024">1:1 (Square)</option>
+                                <option value="1024x768">4:3 (Landscape)</option>
+                                <option value="768x1024">4:3 (Portrait)</option>
+                                <option value="1280x720">16:9 (Landscape)</option>
+                                <option value="720x1280">16:9 (Portrait)</option>
+                                <option value="1536x688">20:9 (Landscape)</option>
+                                <option value="688x1536">20:9 (Portrait)</option>
                             </select>
+                        </div>
+                        
+                        <div class="upscale-section">
+                            <label for="upscaleResolutionSelect">Upscale Factor:</label>
+                            <select id="upscaleResolutionSelect">
+                                <option value="1024">1x</option>
+                                <option value="2048">2x</option>
+                                <option value="4096">4x</option>
+                            </select>
+                            <button class="btn upscale-btn" id="upscaleBtn">
+                                Upscale
+                            </button>
                         </div>
                         
                         <div class="action-buttons">

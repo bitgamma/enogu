@@ -382,6 +382,49 @@ h1 {
     flex-wrap: wrap;
 }
 
+.upscale-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.upscale-section label {
+    color: #374151;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.upscale-section select {
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    min-width: 100px;
+}
+
+.upscale-section select:focus {
+    outline: none;
+    border-color: #1a1a1a;
+}
+
+.upscale-btn {
+    background: #1a1a1a;
+    color: white;
+    border-color: #1a1a1a;
+    padding: 12px 20px;
+    flex: none;
+    min-width: auto;
+}
+
+.upscale-btn:hover:not(:disabled) {
+    background: #374151;
+    border-color: #374151;
+}
+
 .btn {
     display: flex;
     align-items: center;
