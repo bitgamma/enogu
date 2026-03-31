@@ -237,7 +237,7 @@ async def execute_comfyui_workflow(prompt: str, profile: dict, width: int = 768,
     
     # Update EmptyLatentImage node with custom resolution
     for node_id, node_data in workflow.items():
-        if node_data.get("class_type") == "EmptyLatentImage":
+        if node_data.get("class_type") == "EmptyLatentImage" or node_data.get("class_type") == "EmptySD3LatentImage":
             inputs = node_data.get("inputs", {})
             if "width" in inputs:
                 inputs["width"] = width

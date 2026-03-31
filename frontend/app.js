@@ -175,6 +175,9 @@ function resetState() {
     regenerateBtn.disabled = true;
     hideError();
     resetProgress();
+    // Reset file inputs to allow re-selecting the same file
+    fileInput.value = '';
+    cameraInput.value = '';
 }
 
 // Image History Functions
