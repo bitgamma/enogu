@@ -137,8 +137,7 @@ cameraBtn.addEventListener('click', () => {
 
 // Detect mobile device and show camera button
 function isMobileDevice() {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-           (window.innerWidth <= 768 && 'ontouchstart' in window);
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
 function setupMobileCameraButton() {
@@ -258,11 +257,6 @@ function removeFromHistory(index) {
     }
 }
 
-function clearHistory() {
-    imageHistory = [];
-    renderHistory();
-}
-
 function resetProgress() {
     progressFill.style.width = '0%';
     stepIndicator1.classList.add('active');
@@ -273,17 +267,9 @@ function resetProgress() {
 
 // Screen navigation
 function showScreen(screenNumber) {
-    screen1.classList.remove('active');
-    screen2.classList.remove('active');
-    screen3.classList.remove('active');
-    
-    if (screenNumber === 1) {
-        screen1.classList.add('active');
-    } else if (screenNumber === 2) {
-        screen2.classList.add('active');
-    } else if (screenNumber === 3) {
-        screen3.classList.add('active');
-    }
+    [screen1, screen2, screen3].forEach((screen, index) => {
+        screen.classList.toggle('active', index + 1 === screenNumber);
+    });
 }
 
 // Start the processing flow (analyze + generate)

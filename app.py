@@ -327,13 +327,6 @@ async def execute_comfyui_workflow(prompt: str, profile: dict, width: int, heigh
         await asyncio.sleep(0.5)
 
 
-@app.get("/", response_class=HTMLResponse)
-async def index():
-    """Serve the frontend HTML."""
-    with open(FRONTEND_DIR / "index.html") as f:
-        return HTMLResponse(content=f.read())
-
-
 @app.get("/api/profiles")
 async def list_profiles_api():
     """List all available profiles."""
