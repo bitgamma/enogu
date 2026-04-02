@@ -194,8 +194,12 @@ function addToHistory(imageSrc) {
         const item = imageHistory.splice(existingIndex, 1)[0];
         imageHistory.unshift(item);
     } else {
-        // Add new image to front
-        imageHistory.unshift({ src: imageSrc });
+        // Add new image to front with prompt and seed
+        imageHistory.unshift({
+            src: imageSrc,
+            prompt: generatedPrompt,
+            seed: currentSeed
+        });
         
         // Remove oldest if exceeds max
         if (imageHistory.length > MAX_HISTORY) {
@@ -236,6 +240,15 @@ function renderHistory() {
                 resultImage.style.display = 'block';
                 regenerateBtn.disabled = false;
             };
+            
+            // Restore prompt and seed if available
+            if (item.prompt !== undefined) {
+                generatedPrompt = item.prompt;
+                promptText.value = item.prompt;
+            }
+            if (item.seed !== undefined) {
+                currentSeed = item.seed;
+            }
             
             // Update active state
             renderHistory();
