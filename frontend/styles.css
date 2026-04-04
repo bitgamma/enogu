@@ -256,7 +256,7 @@ h1 {
 .result-section {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 20px;
 }
 
 .result-image-container {
@@ -347,21 +347,35 @@ h1 {
     background: white;
 }
 
-.resolution-selector {
+.prompt-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.control-sections {
+    display: flex;
+    gap: 24px;
+    margin-top: 16px;
+}
+
+.regenerate-section {
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-width: 0;
 }
 
-.resolution-selector label {
+.regenerate-section label {
     color: #374151;
     font-weight: 500;
     font-size: 14px;
 }
 
-.resolution-selector select {
+.regenerate-section select {
     width: 100%;
-    max-width: 400px;
     padding: 10px 12px;
     border: 1px solid #d1d5db;
     font-size: 14px;
@@ -370,49 +384,46 @@ h1 {
     transition: border-color 0.2s;
 }
 
-.resolution-selector select:focus {
+.regenerate-section select:focus {
     outline: none;
     border-color: #1a1a1a;
 }
 
-.action-buttons {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    flex-wrap: wrap;
+.regenerate-section .btn {
+    width: 100%;
 }
 
 .upscale-section {
+    flex: 1;
     display: flex;
-    align-items: center;
-    gap: 12px;
-    justify-content: center;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
 }
 
 .upscale-section label {
     color: #374151;
     font-weight: 500;
     font-size: 14px;
-    white-space: nowrap;
 }
 
 .upscale-section select {
+    width: 100%;
     padding: 10px 12px;
     border: 1px solid #d1d5db;
     font-size: 14px;
     background: white;
     cursor: pointer;
     transition: border-color 0.2s;
-    flex: 1;
-    min-width: 120px;
-    max-width: 100%;
 }
 
 .upscale-section select:focus {
     outline: none;
     border-color: #1a1a1a;
+}
+
+.upscale-section .btn {
+    width: 100%;
 }
 
 .upscale-btn {
@@ -568,12 +579,22 @@ h1 {
         font-size: 10px;
     }
     
-    .action-buttons {
+    .btn {
+        min-width: 100%;
+    }
+    
+    .prompt-actions {
         flex-direction: column;
     }
     
-    .btn {
-        min-width: 100%;
+    .control-sections {
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .regenerate-section,
+    .upscale-section {
+        width: 100%;
     }
     
     .error-container {
@@ -581,21 +602,12 @@ h1 {
         top: 10px;
     }
     
-    /* Upscale section mobile adjustments */
-    .upscale-section {
-        flex-direction: column;
-        align-items: stretch;
+    /* Profile section mobile adjustments */
+    .profile-section {
+        max-width: 100%;
     }
     
-    .upscale-section label {
-        text-align: left;
-    }
-    
-    .upscale-section select {
-        width: 100%;
-    }
-    
-    .upscale-btn {
+    .profile-section select {
         width: 100%;
     }
 }

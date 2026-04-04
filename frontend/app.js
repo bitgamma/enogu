@@ -3,6 +3,7 @@
 
 // DOM Elements
 const profileSelect = document.getElementById('profileSelect');
+const profileSelectResult = document.getElementById('profileSelectResult');
 const uploadSection = document.getElementById('uploadSection');
 const fileInput = document.getElementById('fileInput');
 const cameraInput = document.getElementById('cameraInput');
@@ -53,6 +54,7 @@ const historyContainer = document.getElementById('historyContainer');
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
     await loadProfiles();
+    populateProfileSelects();
     setupMobileCameraButton();
 });
 
@@ -64,27 +66,44 @@ async function loadProfiles() {
         
         if (data.profiles && data.profiles.length > 0) {
             availableProfiles = data.profiles;
-            profileSelect.innerHTML = '';
-            data.profiles.forEach((profile, index) => {
-                const option = document.createElement('option');
-                option.value = profile.name;
-                option.textContent = profile.name;
-                profileSelect.appendChild(option);
-                
-                // Auto-select first profile
-                if (index === 0) {
-                    option.selected = true;
-                    currentProfile = profile.name;
-                }
-            });
         } else {
             showError('No profiles available');
-            profileSelect.innerHTML = '<option value="">No profiles available</option>';
         }
     } catch (err) {
         console.error('Failed to load profiles:', err);
         showError('Failed to load profiles. Please refresh the page.');
-        profileSelect.innerHTML = '<option value="">Error loading profiles</option>';
+    }
+}
+
+// Populate both profile selects from already-loaded data
+function populateProfileSelects() {
+    if (availableProfiles.length > 0) {
+        // Populate screen 1 profile select
+        profileSelect.innerHTML = '';
+        availableProfiles.forEach((profile, index) => {
+            const option = document.createElement('option');
+            option.value = profile.name;
+            option.textContent = profile.name;
+            profileSelect.appendChild(option);
+            
+            if (index === 0) {
+                option.selected = true;
+                currentProfile = profile.name;
+            }
+        });
+        
+        // Populate screen 3 profile select
+        profileSelectResult.innerHTML = '';
+        availableProfiles.forEach((profile, index) => {
+            const option = document.createElement('option');
+            option.value = profile.name;
+            option.textContent = profile.name;
+            profileSelectResult.appendChild(option);
+            
+            if (index === 0) {
+                option.selected = true;
+            }
+        });
     }
 }
 
@@ -92,6 +111,12 @@ async function loadProfiles() {
 profileSelect.addEventListener('change', (e) => {
     currentProfile = e.target.value;
     console.log(`Selected profile: ${currentProfile}`);
+});
+
+// Profile selection change handler for screen 3
+profileSelectResult.addEventListener('change', (e) => {
+    currentProfile = e.target.value;
+    console.log(`Selected profile (screen 3): ${currentProfile}`);
 });
 
 // Upload section click
@@ -182,6 +207,9 @@ function resetState() {
     // Reset file inputs to allow re-selecting the same file
     fileInput.value = '';
     cameraInput.value = '';
+    // Reset profile selections to match screen 1
+    profileSelect.value = currentProfile || '';
+    profileSelectResult.value = currentProfile || '';
 }
 
 // Image History Functions
@@ -283,6 +311,11 @@ function showScreen(screenNumber) {
     [screen1, screen2, screen3].forEach((screen, index) => {
         screen.classList.toggle('active', index + 1 === screenNumber);
     });
+    
+    // Sync profile selection when moving to screen 3
+    if (screenNumber === 3) {
+        profileSelectResult.value = currentProfile || '';
+    }
 }
 
 // Start the processing flow (analyze + generate)

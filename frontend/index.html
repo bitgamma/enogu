@@ -92,13 +92,8 @@
                         </button>
                     </div>
                     
-                    <div class="result-controls">
-                        <div class="prompt-container">
-                            <label for="promptText">Prompt:</label>
-                            <textarea class="prompt-text" id="promptText" rows="5"></textarea>
-                        </div>
-                        
-                        <div class="resolution-selector">
+                    <div class="control-sections">
+                        <div class="regenerate-section">
                             <label for="resolutionSelect">Aspect Ratio:</label>
                             <select id="resolutionSelect">
                                 <option value="1024x1024">1:1 (Square)</option>
@@ -109,6 +104,9 @@
                                 <option value="1536x688">20:9 (Landscape)</option>
                                 <option value="688x1536">20:9 (Portrait)</option>
                             </select>
+                            <button class="btn regenerate-btn" id="regenerateBtn">
+                                Regenerate
+                            </button>
                         </div>
                         
                         <div class="upscale-section">
@@ -122,18 +120,26 @@
                                 Upscale
                             </button>
                         </div>
-                        
-                        <div class="action-buttons">
-                            <button class="btn new-btn" id="newBtn">
-                                New
-                            </button>
+                    </div>
+                    
+                    <div class="prompt-container">
+                        <label for="promptText">Prompt:</label>
+                        <textarea class="prompt-text" id="promptText" rows="5"></textarea>
+                        <div class="prompt-actions">
                             <button class="btn reanalyze-btn" id="reanalyzeBtn">
                                 Re-analyze
                             </button>
-                            <button class="btn regenerate-btn" id="regenerateBtn">
-                                Regenerate
+                            <button class="btn new-btn" id="newBtn">
+                                New
                             </button>
                         </div>
+                    </div>
+                    
+                    <div class="profile-section">
+                        <label for="profileSelectResult">Select Profile:</label>
+                        <select id="profileSelectResult">
+                            <option value="">Loading profiles...</option>
+                        </select>
                     </div>
                 </div>
                 

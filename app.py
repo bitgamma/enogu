@@ -152,6 +152,8 @@ def list_profiles() -> list:
                 prompt_file_path = item / "extraction_prompt.txt"
                 if prompt_file_path.exists():
                     profiles.append({"name": item.name})
+    # Sort profiles alphabetically by name
+    profiles.sort(key=lambda x: x["name"])
     return profiles
 
 
