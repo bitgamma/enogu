@@ -17,6 +17,10 @@ A web application that processes uploaded images through an LLM for analysis and
 - CORS-enabled API for flexible frontend integration
 - Mobile-friendly with camera capture support
 
+## Demo
+
+![Enogu Demo](enogu.webp)
+
 ## Prerequisites
 
 - Python 3.10 or higher
