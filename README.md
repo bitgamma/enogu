@@ -19,7 +19,7 @@ A web application that processes uploaded images through an LLM for analysis and
 
 ## Demo
 
-![Enogu Demo](enogu.webp)
+<img src="enogu.webp" alt="Enogu Demo" width="50%">
 
 ## Prerequisites
 
