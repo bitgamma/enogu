@@ -39,7 +39,6 @@ const screen3 = document.getElementById('screen3');
 // State
 let currentProfile = null;
 let selectedFile = null;
-let generatedPrompt = null;
 let availableProfiles = [];
 let currentResolution = { width: 1024, height: 1024 };
 let currentSeed = null;
@@ -194,7 +193,6 @@ function handleFile(file) {
 
 function resetState() {
     selectedFile = null;
-    generatedPrompt = null;
     currentSeed = null;
     promptText.value = '';
     previewImage.style.display = 'none';
@@ -213,7 +211,7 @@ function resetState() {
 }
 
 // Image History Functions
-function addToHistory(imageSrc) {
+function addToHistory(imageSrc, promptUsed) {
     // Check if image already exists in history
     const existingIndex = imageHistory.findIndex(item => item.src === imageSrc);
     
@@ -225,7 +223,7 @@ function addToHistory(imageSrc) {
         // Add new image to front with prompt and seed
         imageHistory.unshift({
             src: imageSrc,
-            prompt: generatedPrompt,
+            prompt: promptUsed,
             seed: currentSeed
         });
         
@@ -271,7 +269,6 @@ function renderHistory() {
             
             // Restore prompt and seed if available
             if (item.prompt !== undefined) {
-                generatedPrompt = item.prompt;
                 promptText.value = item.prompt;
             }
             if (item.seed !== undefined) {
@@ -379,8 +376,7 @@ async function analyzeImage() {
             throw new Error(errorMessage);
         }
         
-        generatedPrompt = data.prompt;
-        promptText.value = generatedPrompt;
+        promptText.value = data.prompt;
         
         // Move to generation
         processingText.textContent = 'Generating image...';
@@ -438,8 +434,8 @@ async function generateImage(upscale = false) {
             resultImage.style.display = 'block';
             regenerateBtn.disabled = false;
             progressFill.style.width = '100%';
-            // Add to history
-            addToHistory(data.image);
+            // Add to history with the actual prompt used for generation
+            addToHistory(data.image, promptText.value);
         };
         
     } catch (err) {
@@ -476,8 +472,7 @@ reanalyzeBtn.addEventListener('click', async () => {
             throw new Error(errorMessage);
         }
         
-        generatedPrompt = data.prompt;
-        promptText.value = generatedPrompt;
+        promptText.value = data.prompt;
         
         processingText.textContent = 'Analysis complete';
         progressFill.style.width = '100%';
