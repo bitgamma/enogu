@@ -49,12 +49,12 @@ const screen3 = document.getElementById('screen3');
 let currentProfile = null;
 let selectedFile = null;
 let availableProfiles = [];
-let currentResolution = { width: 1024, height: 1024 };
+let currentResolution = { width: 768, height: 1024 };
 let currentSeed = null;
 let isProcessing = false;
 let imageHistory = [];
 const MAX_HISTORY = 10;
-let upscaleResolution = 1024;
+let upscaleResolution = 2048;
 
 // Shared profile state - fetch once, sync all
 let profilesLoaded = false;
@@ -415,7 +415,7 @@ async function analyzeImage() {
 
 function generateRandomSeed() {
     // Simple random seed generation (not cryptographically secure)
-    return Math.floor(Math.random() * 2147483647);
+    return Math.floor(Math.random() * 4294967295);
 }
 
 async function generateImage(upscale = false) {

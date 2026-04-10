@@ -104,12 +104,12 @@
                             <label for="resolutionSelect" class="label">Aspect Ratio:</label>
                             <select id="resolutionSelect" class="select">
                                 <option value="1024x1024">1:1 (Square)</option>
+                                <option value="768x1024" selected>4:3 (Portrait)</option>
                                 <option value="1024x768">4:3 (Landscape)</option>
-                                <option value="768x1024">4:3 (Portrait)</option>
-                                <option value="1280x720">16:9 (Landscape)</option>
                                 <option value="720x1280">16:9 (Portrait)</option>
-                                <option value="1536x688">20:9 (Landscape)</option>
+                                <option value="1280x720">16:9 (Landscape)</option>
                                 <option value="688x1536">20:9 (Portrait)</option>
+                                <option value="1536x688">20:9 (Landscape)</option>
                             </select>
                             <button class="btn primary" id="regenerateBtn">
                                 Regenerate
@@ -120,7 +120,7 @@
                             <label for="upscaleResolutionSelect" class="label">Upscale Factor:</label>
                             <select id="upscaleResolutionSelect" class="select">
                                 <option value="1024">1x</option>
-                                <option value="2048">2x</option>
+                                <option value="2048" selected>2x</option>
                                 <option value="4096">4x</option>
                             </select>
                             <button class="btn primary upscale-btn" id="upscaleBtn">
@@ -131,7 +131,7 @@
                     
                     <div class="prompt-container">
                         <label for="promptText" class="label">Prompt:</label>
-                        <textarea id="promptText" rows="5"></textarea>
+                        <textarea id="promptText" class="prompt-text" rows="5"></textarea>
                         <div class="prompt-actions">
                             <button class="btn primary" id="reanalyzeBtn">
                                 Re-analyze
