@@ -43,8 +43,8 @@
             <!-- Screen 1: Profile Selection & Image Upload -->
             <div class="screen active" id="screen1">
                 <div class="profile-section">
-                    <label for="profileSelect">Select Profile:</label>
-                    <select id="profileSelect">
+                    <label for="profileSelect" class="label">Select Profile:</label>
+                    <select id="profileSelect" class="select">
                         <option value="">Loading profiles...</option>
                     </select>
                 </div>
@@ -75,10 +75,10 @@
                     </div>
                     <p class="processing-text" id="processingText">Analyzing image...</p>
                     <div class="error-actions" id="errorActions" style="display: none;">
-                        <button class="btn try-again-btn" id="tryAgainBtn">
+                        <button class="btn primary" id="tryAgainBtn">
                             Retry
                         </button>
-                        <button class="btn cancel-btn" id="cancelBtn">
+                        <button class="btn" id="cancelBtn">
                             Cancel
                         </button>
                     </div>
@@ -101,8 +101,8 @@
                     
                     <div class="control-sections">
                         <div class="regenerate-section">
-                            <label for="resolutionSelect">Aspect Ratio:</label>
-                            <select id="resolutionSelect">
+                            <label for="resolutionSelect" class="label">Aspect Ratio:</label>
+                            <select id="resolutionSelect" class="select">
                                 <option value="1024x1024">1:1 (Square)</option>
                                 <option value="1024x768">4:3 (Landscape)</option>
                                 <option value="768x1024">4:3 (Portrait)</option>
@@ -111,40 +111,40 @@
                                 <option value="1536x688">20:9 (Landscape)</option>
                                 <option value="688x1536">20:9 (Portrait)</option>
                             </select>
-                            <button class="btn regenerate-btn" id="regenerateBtn">
+                            <button class="btn primary" id="regenerateBtn">
                                 Regenerate
                             </button>
                         </div>
                         
                         <div class="upscale-section">
-                            <label for="upscaleResolutionSelect">Upscale Factor:</label>
-                            <select id="upscaleResolutionSelect">
+                            <label for="upscaleResolutionSelect" class="label">Upscale Factor:</label>
+                            <select id="upscaleResolutionSelect" class="select">
                                 <option value="1024">1x</option>
                                 <option value="2048">2x</option>
                                 <option value="4096">4x</option>
                             </select>
-                            <button class="btn upscale-btn" id="upscaleBtn">
+                            <button class="btn primary upscale-btn" id="upscaleBtn">
                                 Upscale
                             </button>
                         </div>
                     </div>
                     
                     <div class="prompt-container">
-                        <label for="promptText">Prompt:</label>
-                        <textarea class="prompt-text" id="promptText" rows="5"></textarea>
+                        <label for="promptText" class="label">Prompt:</label>
+                        <textarea id="promptText" rows="5"></textarea>
                         <div class="prompt-actions">
-                            <button class="btn reanalyze-btn" id="reanalyzeBtn">
+                            <button class="btn primary" id="reanalyzeBtn">
                                 Re-analyze
                             </button>
-                            <button class="btn new-btn" id="newBtn">
+                            <button class="btn" id="newBtn">
                                 New
                             </button>
                         </div>
                     </div>
                     
                     <div class="profile-section">
-                        <label for="profileSelectResult">Select Profile:</label>
-                        <select id="profileSelectResult">
+                        <label for="profileSelectResult" class="label">Select Profile:</label>
+                        <select id="profileSelectResult" class="select">
                             <option value="">Loading profiles...</option>
                         </select>
                     </div>
@@ -165,7 +165,7 @@
             <div class="editor-sidebar">
                 <div class="editor-sidebar-header">
                     <h3>Profiles</h3>
-                    <button class="btn btn-small" id="downloadAllBtn" onclick="downloadAllProfiles()">Download All</button>
+                    <button class="btn small" id="downloadAllBtn" onclick="downloadAllProfiles()">Download All</button>
                 </div>
                 <div class="profile-list" id="profileList">
                     <!-- Profile items will be loaded here -->
@@ -205,21 +205,21 @@
                     <div class="config-section">
                         <h3>Providers</h3>
                         <div class="config-field">
-                            <label for="comfyuiEndpoint">ComfyUI Endpoint:</label>
-                            <input type="text" id="comfyuiEndpoint" class="config-input" placeholder="http://localhost:8188">
+                            <label for="comfyuiEndpoint" class="label">ComfyUI Endpoint:</label>
+                            <input type="text" id="comfyuiEndpoint" class="input" placeholder="http://localhost:8188">
                         </div>
                         <div class="config-field">
-                            <label for="llmEndpoint">LLM Endpoint:</label>
-                            <input type="text" id="llmEndpoint" class="config-input" placeholder="http://localhost:8000/api/v1">
+                            <label for="llmEndpoint" class="label">LLM Endpoint:</label>
+                            <input type="text" id="llmEndpoint" class="input" placeholder="http://localhost:8000/api/v1">
                         </div>
                         <div class="config-field">
-                            <label for="llmApiKey">LLM API Key:</label>
-                            <input type="text" id="llmApiKey" class="config-input" placeholder="your-api-key">
+                            <label for="llmApiKey" class="label">LLM API Key:</label>
+                            <input type="text" id="llmApiKey" class="input" placeholder="your-api-key">
                         </div>
                         <div class="config-field">
-                            <label for="llmModel">LLM Model:</label>
+                            <label for="llmModel" class="label">LLM Model:</label>
                             <div class="config-field-row">
-                                <select id="llmModel" class="config-select">
+                                <select id="llmModel" class="select">
                                     <option value="">Loading models...</option>
                                 </select>
                                 <button class="btn" id="refreshModelsBtn" onclick="refreshLLMModels()">Refresh Models</button>
