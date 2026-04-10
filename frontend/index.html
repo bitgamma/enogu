@@ -57,7 +57,7 @@
                 
                 <!-- Mobile camera capture button (shown only on mobile) -->
                 <div class="camera-button-container" style="display: none;">
-                    <button class="camera-btn" id="cameraBtn">
+                    <button class="btn" id="cameraBtn">
                         Capture
                     </button>
                 </div>
@@ -175,11 +175,10 @@
                 <div class="editor-header">
                     <h2 id="editorProfileName">Select a profile</h2>
                     <div class="editor-actions">
-                        <button class="btn" id="saveProfileBtn" onclick="saveCurrentProfile()" disabled>Save</button>
+                        <button class="btn primary" id="saveProfileBtn" onclick="saveCurrentProfile()" disabled>Save</button>
                         <button class="btn" id="duplicateProfileBtn" onclick="duplicateCurrentProfile()" disabled>Duplicate</button>
                         <button class="btn" id="renameProfileBtn" onclick="renameCurrentProfile()" disabled>Rename</button>
                         <button class="btn" id="deleteProfileBtn" onclick="deleteCurrentProfile()" disabled>Delete</button>
-                        <button class="btn" id="downloadProfileBtn" onclick="downloadCurrentProfile()" disabled>Download</button>
                     </div>
                 </div>
                 <div class="editor-tabs" id="editorTabs" style="display: none;">
@@ -222,11 +221,11 @@
                                 <select id="llmModel" class="select">
                                     <option value="">Loading models...</option>
                                 </select>
-                                <button class="btn" id="refreshModelsBtn" onclick="refreshLLMModels()">Refresh Models</button>
+                                <button class="btn primary" id="refreshModelsBtn" onclick="refreshLLMModels()">Refresh Models</button>
                             </div>
                         </div>
                         <div class="config-actions">
-                            <button class="btn" id="saveConfigBtn" onclick="saveConfig()">Save Configuration</button>
+                            <button class="btn primary" id="saveConfigBtn" onclick="saveConfig()">Save Configuration</button>
                         </div>
                     </div>
                 </div>

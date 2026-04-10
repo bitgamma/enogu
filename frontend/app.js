@@ -893,7 +893,6 @@ async function selectProfileForEdit(profileName) {
     document.getElementById('duplicateProfileBtn').disabled = false;
     document.getElementById('renameProfileBtn').disabled = false;
     document.getElementById('deleteProfileBtn').disabled = false;
-    document.getElementById('downloadProfileBtn').disabled = false;
     
     // Show editor UI
     document.getElementById('editorTabs').style.display = 'flex';
@@ -1100,7 +1099,6 @@ async function deleteCurrentProfile() {
             document.getElementById('duplicateProfileBtn').disabled = true;
             document.getElementById('renameProfileBtn').disabled = true;
             document.getElementById('deleteProfileBtn').disabled = true;
-            document.getElementById('downloadProfileBtn').disabled = true;
             document.getElementById('editorTabs').style.display = 'none';
             document.getElementById('editorContent').style.display = 'none';
             document.getElementById('editorPlaceholder').style.display = 'block';
@@ -1121,12 +1119,6 @@ async function deleteCurrentProfile() {
         console.error('Failed to delete profile:', err);
         showError('Failed to delete profile');
     }
-}
-
-// Download current profile
-function downloadCurrentProfile() {
-    if (!editorCurrentProfile) return;
-    window.location.href = `/api/profile-editor/download/${encodeURIComponent(editorCurrentProfile)}`;
 }
 
 // Download all profiles

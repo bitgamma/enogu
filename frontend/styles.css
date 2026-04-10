@@ -267,6 +267,7 @@ label {
 
 .btn.primary:hover:not(:disabled) {
     background: #374151;
+    color: white;
     border-color: #374151;
 }
 
@@ -706,9 +707,10 @@ label {
     color: white;
 }
 
-.profile-item.selected .profile-item-btn {
-    background: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 0.3);
+.profile-item.selected .profile-item-btn:hover {
+    background: #d1d5db;
+    color: black;
+    border-color: #d1d5db;
 }
 
 .profile-name {
