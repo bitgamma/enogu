@@ -701,6 +701,13 @@ h1 {
     margin-bottom: 20px;
 }
 
+/* Hide navigation bar on mobile */
+@media (max-width: 768px) {
+    .main-nav {
+        display: none;
+    }
+}
+
 .nav-btn {
     padding: 10px 20px;
     border: 2px solid #d1d5db;
