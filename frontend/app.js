@@ -24,6 +24,15 @@ const cancelBtn = document.getElementById('cancelBtn');
 const errorActions = document.getElementById('errorActions');
 const downloadBtn = document.getElementById('downloadBtn');
 
+// Configuration Editor DOM Elements
+const configEditorContainer = document.getElementById('configEditorContainer');
+const comfyuiEndpointInput = document.getElementById('comfyuiEndpoint');
+const llmEndpointInput = document.getElementById('llmEndpoint');
+const llmApiKeyInput = document.getElementById('llmApiKey');
+const llmModelSelect = document.getElementById('llmModel');
+const refreshModelsBtn = document.getElementById('refreshModelsBtn');
+const saveConfigBtn = document.getElementById('saveConfigBtn');
+
 // Processing Elements
 const progressFill = document.getElementById('progressFill');
 const stepIndicator1 = document.getElementById('stepIndicator1');
@@ -58,6 +67,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadProfiles();
     populateAllProfileUIs();
     setupMobileCameraButton();
+    
+    // Setup config editor event listeners
+    if (refreshModelsBtn) {
+        refreshModelsBtn.addEventListener('click', refreshLLMModels);
+    }
+    if (saveConfigBtn) {
+        saveConfigBtn.addEventListener('click', saveConfig);
+    }
 });
 
 // Load/refresh available profiles from backend
@@ -630,8 +647,10 @@ let editorOriginalNames = new Set(); // Track original names for rename detectio
 function showGenerateView() {
     document.getElementById('navGenerate').classList.add('active');
     document.getElementById('navEditor').classList.remove('active');
+    document.getElementById('navConfig').classList.remove('active');
     document.getElementById('screen1').parentElement.style.display = 'block';
     document.getElementById('profileEditorContainer').style.display = 'none';
+    document.getElementById('configEditorContainer').style.display = 'none';
     // Refresh profiles and update all UIs
     loadProfiles().then(() => populateAllProfileUIs());
 }
@@ -639,10 +658,194 @@ function showGenerateView() {
 function showProfileEditor() {
     document.getElementById('navGenerate').classList.remove('active');
     document.getElementById('navEditor').classList.add('active');
+    document.getElementById('navConfig').classList.remove('active');
     document.getElementById('screen1').parentElement.style.display = 'none';
     document.getElementById('profileEditorContainer').style.display = 'flex';
+    document.getElementById('configEditorContainer').style.display = 'none';
     // Refresh profiles and update all UIs
     loadProfiles().then(() => populateAllProfileUIs());
+}
+
+function showConfigEditor() {
+    document.getElementById('navGenerate').classList.remove('active');
+    document.getElementById('navEditor').classList.remove('active');
+    document.getElementById('navConfig').classList.add('active');
+    document.getElementById('screen1').parentElement.style.display = 'none';
+    document.getElementById('profileEditorContainer').style.display = 'none';
+    document.getElementById('configEditorContainer').style.display = 'block';
+    // Load configuration
+    loadConfig();
+}
+
+// Configuration editor functions
+let currentConfig = null;
+let availableLLMModels = [];
+
+// Load configuration from backend
+async function loadConfig() {
+    try {
+        const response = await fetch('/api/config/providers');
+        const data = await response.json();
+        
+        if (data.providers) {
+            currentConfig = data.providers;
+            
+            // Populate form fields
+            document.getElementById('comfyuiEndpoint').value = currentConfig.comfyui_endpoint || '';
+            document.getElementById('llmEndpoint').value = currentConfig.llm_endpoint || '';
+            document.getElementById('llmApiKey').value = currentConfig.llm_apikey || '';
+            
+            // Load LLM models from the endpoint
+            await refreshLLMModels();
+            
+            // Set the current model if it exists in the list
+            if (currentConfig.llm_model) {
+                const modelSelect = document.getElementById('llmModel');
+                modelSelect.value = currentConfig.llm_model;
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load config:', err);
+        showError('Failed to load configuration. Please refresh the page.');
+    }
+}
+
+// Save configuration to backend
+async function saveConfig() {
+    const comfyuiEndpoint = document.getElementById('comfyuiEndpoint').value.trim();
+    const llmEndpoint = document.getElementById('llmEndpoint').value.trim();
+    const llmApiKey = document.getElementById('llmApiKey').value.trim();
+    const llmModel = document.getElementById('llmModel').value;
+    
+    // Validate required fields
+    if (!comfyuiEndpoint || !llmEndpoint || !llmApiKey || !llmModel) {
+        showError('All fields are required');
+        return;
+    }
+    
+    const newConfig = {
+        providers: {
+            comfyui_endpoint: comfyuiEndpoint,
+            llm_endpoint: llmEndpoint,
+            llm_apikey: llmApiKey,
+            llm_model: llmModel
+        }
+    };
+    
+    try {
+        const response = await fetch('/api/config/providers', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(newConfig)
+        });
+        
+        if (response.ok) {
+            currentConfig = newConfig.providers;
+            showError('Configuration saved successfully!', true);
+        } else {
+            const error = await response.json();
+            showError(error.detail || 'Failed to save configuration');
+        }
+    } catch (err) {
+        console.error('Failed to save config:', err);
+        showError('Failed to save configuration. Please try again.');
+    }
+}
+
+// Refresh LLM models from the LLM endpoint
+async function refreshLLMModels() {
+    const llmEndpoint = document.getElementById('llmEndpoint').value.trim();
+    const llmApiKey = document.getElementById('llmApiKey').value.trim();
+    const modelSelect = document.getElementById('llmModel');
+    
+    if (!llmEndpoint) {
+        modelSelect.innerHTML = '<option value="">Enter LLM endpoint first</option>';
+        return;
+    }
+    
+    modelSelect.innerHTML = '<option value="">Loading models...</option>';
+    
+    // Build headers with optional Bearer authentication
+    const headers = {};
+    if (llmApiKey) {
+        headers['Authorization'] = `Bearer ${llmApiKey}`;
+    }
+    
+    try {
+        // Try common endpoints for listing models
+        let modelsEndpoint = `${llmEndpoint}/models`;
+        if (!llmEndpoint.endsWith('/api/v1')) {
+            // If endpoint doesn't end with /api/v1, try appending /models directly
+            modelsEndpoint = llmEndpoint.endsWith('/') ? `${llmEndpoint}models` : `${llmEndpoint}/models`;
+        }
+        
+        const response = await fetch(modelsEndpoint, { headers });
+        
+        if (response.ok) {
+            const data = await response.json();
+            
+            // Handle different response formats
+            let models = [];
+            if (Array.isArray(data)) {
+                models = data;
+            } else if (data.models && Array.isArray(data.models)) {
+                models = data.models;
+            } else if (data.data && Array.isArray(data.data)) {
+                models = data.data;
+            }
+            
+            // Extract model names/IDs
+            availableLLMModels = models.map(model => {
+                if (typeof model === 'string') {
+                    return model;
+                }
+                return model.id || model.name || model.model;
+            }).filter(Boolean);
+            
+            // Populate the select dropdown
+            modelSelect.innerHTML = '';
+            if (availableLLMModels.length > 0) {
+                availableLLMModels.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    modelSelect.appendChild(option);
+                });
+            } else {
+                modelSelect.innerHTML = '<option value="">No models found</option>';
+            }
+        } else {
+            // Try alternative endpoint format
+            const altEndpoint = `${llmEndpoint.replace('/api/v1', '')}/models`;
+            const altResponse = await fetch(altEndpoint, { headers });
+            
+            if (altResponse.ok) {
+                const data = await altResponse.json();
+                availableLLMModels = data.models || data.data || [];
+                
+                modelSelect.innerHTML = '';
+                if (availableLLMModels.length > 0) {
+                    availableLLMModels.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model;
+                        option.textContent = model;
+                        modelSelect.appendChild(option);
+                    });
+                } else {
+                    modelSelect.innerHTML = '<option value="">No models found</option>';
+                }
+            } else {
+                modelSelect.innerHTML = '<option value="">Failed to load models</option>';
+                console.error('Failed to fetch models:', await response.text());
+            }
+        }
+    } catch (err) {
+        console.error('Failed to fetch LLM models:', err);
+        modelSelect.innerHTML = '<option value="">Failed to load models</option>';
+        showError('Failed to load LLM models. Check the LLM endpoint.');
+    }
 }
 
 // Populate editor profile list from already-loaded data

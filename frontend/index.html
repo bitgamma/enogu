@@ -14,6 +14,7 @@
         <nav class="main-nav">
             <button class="nav-btn active" id="navGenerate" onclick="showGenerateView()">Generate</button>
             <button class="nav-btn" id="navEditor" onclick="showProfileEditor()">Profile Editor</button>
+            <button class="nav-btn" id="navConfig" onclick="showConfigEditor()">Settings</button>
         </nav>
         
         <!-- Progress Bar -->
@@ -193,6 +194,41 @@
                 </div>
                 <div class="editor-placeholder" id="editorPlaceholder">
                     <p>Select a profile from the sidebar to edit</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Configuration Editor Screen -->
+        <div class="config-editor-container" id="configEditorContainer" style="display: none;">
+            <div class="config-editor-main">
+                <div class="config-editor-content">
+                    <div class="config-section">
+                        <h3>Providers</h3>
+                        <div class="config-field">
+                            <label for="comfyuiEndpoint">ComfyUI Endpoint:</label>
+                            <input type="text" id="comfyuiEndpoint" class="config-input" placeholder="http://localhost:8188">
+                        </div>
+                        <div class="config-field">
+                            <label for="llmEndpoint">LLM Endpoint:</label>
+                            <input type="text" id="llmEndpoint" class="config-input" placeholder="http://localhost:8000/api/v1">
+                        </div>
+                        <div class="config-field">
+                            <label for="llmApiKey">LLM API Key:</label>
+                            <input type="text" id="llmApiKey" class="config-input" placeholder="your-api-key">
+                        </div>
+                        <div class="config-field">
+                            <label for="llmModel">LLM Model:</label>
+                            <div class="config-field-row">
+                                <select id="llmModel" class="config-select">
+                                    <option value="">Loading models...</option>
+                                </select>
+                                <button class="btn" id="refreshModelsBtn" onclick="refreshLLMModels()">Refresh Models</button>
+                            </div>
+                        </div>
+                        <div class="config-actions">
+                            <button class="btn" id="saveConfigBtn" onclick="saveConfig()">Save Configuration</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

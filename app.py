@@ -578,6 +578,38 @@ async def download_all_profiles_api():
     )
 
 
+# ============== Configuration Editor API Endpoints ==============
+
+@app.get("/api/config/providers")
+async def get_config_providers():
+    """Get the providers section of the configuration."""
+    return {"providers": CONFIG.get("providers", {})}
+
+
+@app.post("/api/config/providers")
+async def save_config_providers(request: dict):
+    """Save/update the providers section of the configuration. Applies immediately and persists to file."""
+    providers = request.get("providers", {})
+    
+    # Validate required fields
+    required_fields = ["comfyui_endpoint", "llm_endpoint", "llm_apikey", "llm_model"]
+    for field in required_fields:
+        if field not in providers:
+            raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+    
+    # Update the in-memory configuration
+    if "providers" not in CONFIG:
+        CONFIG["providers"] = {}
+    
+    CONFIG["providers"] = providers
+    
+    # Persist to file
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump(CONFIG, f, indent=4)
+    
+    return {"success": True, "providers": providers}
+
+
 @app.post("/api/analyze")
 async def analyze_image(
     file: UploadFile = File(...),
