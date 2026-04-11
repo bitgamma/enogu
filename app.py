@@ -24,6 +24,34 @@ from PIL import Image
 # Default system prompt for tool calling
 DEFAULT_SYSTEM_PROMPT = "You are an image analysis assistant specialized in extracting image generation prompts. Your task is to analyze the uploaded image and extract a detailed prompt for image generation. When you analyze the image, call the generate_image tool with your extracted prompt and status."
 
+# LLM tool definition for image analysis
+GENERATE_IMAGE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "generate_image",
+        "description": "Extract a prompt for image generation from an image. Use status 'OK' for successful analysis or 'NOK' if you cannot generate a prompt.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["OK", "NOK"],
+                    "description": "Analysis status. 'OK' if successful, 'NOK' if the analysis failed"
+                },
+                "prompt": {
+                    "type": "string",
+                    "description": "The generation prompt. If status is 'OK', provide a detailed description. If status is 'NOK', provide an empty string"
+                },
+                "error_reason": {
+                    "type": "string",
+                    "description": "If status is 'NOK', explain why the analysis failed. Can be omitted if status is 'OK'"
+                }
+            },
+            "required": ["status", "prompt"]
+        }
+    }
+}
+
 app = FastAPI(title="Image Generation Webapp")
 
 # Paths
@@ -165,85 +193,70 @@ def list_profiles() -> list:
 
 def validate_profile_name(name: str) -> bool:
     """Validate profile name to prevent directory traversal attacks."""
-    # Allow only alphanumeric characters, hyphens, and underscores
     return bool(re.match(r'^[a-zA-Z0-9_-]+$', name))
 
 
-def get_profile_content(profile_name: str) -> dict:
-    """Read all files from a profile directory."""
-    profile_path = PROFILES_DIR / profile_name
+class ProfileManager:
+    """Manages profile file operations."""
     
-    if not profile_path.exists():
-        raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
+    def __init__(self, profiles_dir: Path):
+        self.profiles_dir = profiles_dir
     
-    files = {}
-    for filename in ["extraction_prompt.txt", "workflow.json", "mappings.json"]:
-        filepath = profile_path / filename
-        if filepath.exists():
-            with open(filepath, 'r') as f:
-                files[filename] = f.read()
-        else:
-            files[filename] = None
-    
-    return files
-
-
-def save_profile_files(profile_name: str, files: dict) -> None:
-    """Save all files to a profile directory."""
-    profile_path = PROFILES_DIR / profile_name
-    profile_path.mkdir(parents=True, exist_ok=True)
-    
-    for filename, content in files.items():
-        if content is not None:
+    def get_content(self, profile_name: str) -> dict:
+        """Read all files from a profile directory."""
+        profile_path = self.profiles_dir / profile_name
+        if not profile_path.exists():
+            raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
+        files = {}
+        for filename in ["extraction_prompt.txt", "workflow.json", "mappings.json"]:
             filepath = profile_path / filename
-            with open(filepath, 'w') as f:
-                f.write(content)
-
-
-def delete_profile(profile_name: str) -> None:
-    """Delete a profile directory."""
-    profile_path = PROFILES_DIR / profile_name
-    if profile_path.exists():
-        shutil.rmtree(profile_path)
-
-
-def rename_profile(old_name: str, new_name: str) -> None:
-    """Rename a profile directory."""
-    old_path = PROFILES_DIR / old_name
-    new_path = PROFILES_DIR / new_name
-    shutil.move(str(old_path), str(new_path))
-
-
-def duplicate_profile(source_name: str, new_name: str) -> None:
-    """Duplicate a profile directory with a new name."""
-    source_path = PROFILES_DIR / source_name
-    dest_path = PROFILES_DIR / new_name
-    shutil.copytree(str(source_path), str(dest_path))
-
-
-def create_profile_zip(profile_name: str) -> str:
-    """Create a ZIP file for a single profile."""
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
-    profile_path = PROFILES_DIR / profile_name
+            files[filename] = filepath.read_text() if filepath.exists() else None
+        return files
     
-    with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for filepath in profile_path.iterdir():
-            zipf.write(filepath, filepath.name)
+    def save_files(self, profile_name: str, files: dict) -> None:
+        """Save all files to a profile directory."""
+        profile_path = self.profiles_dir / profile_name
+        profile_path.mkdir(parents=True, exist_ok=True)
+        for filename, content in files.items():
+            if content is not None:
+                (profile_path / filename).write_text(content)
     
-    return temp_file.name
+    def delete(self, profile_name: str) -> None:
+        """Delete a profile directory."""
+        profile_path = self.profiles_dir / profile_name
+        if profile_path.exists():
+            shutil.rmtree(profile_path)
+    
+    def rename(self, old_name: str, new_name: str) -> None:
+        """Rename a profile directory."""
+        shutil.move(str(self.profiles_dir / old_name), str(self.profiles_dir / new_name))
+    
+    def duplicate(self, source_name: str, new_name: str) -> None:
+        """Duplicate a profile directory with a new name."""
+        shutil.copytree(str(self.profiles_dir / source_name), str(self.profiles_dir / new_name))
+    
+    def create_zip(self, profile_name: str) -> str:
+        """Create a ZIP file for a single profile."""
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        profile_path = self.profiles_dir / profile_name
+        with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for filepath in profile_path.iterdir():
+                zipf.write(filepath, filepath.name)
+        return temp_file.name
+    
+    def create_all_zip(self) -> str:
+        """Create a ZIP file containing all profiles."""
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for profile_dir in self.profiles_dir.iterdir():
+                if profile_dir.is_dir():
+                    for filepath in profile_dir.iterdir():
+                        zipf.write(filepath, f"{profile_dir.name}/{filepath.name}")
+        return temp_file.name
 
 
-def create_all_profiles_zip() -> str:
-    """Create a ZIP file containing all profiles."""
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
-    
-    with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for profile_dir in PROFILES_DIR.iterdir():
-            if profile_dir.is_dir():
-                for filepath in profile_dir.iterdir():
-                    zipf.write(filepath, f"{profile_dir.name}/{filepath.name}")
-    
-    return temp_file.name
+# Create profile manager instance
+profile_manager = ProfileManager(PROFILES_DIR)
 
 
 def resize_image_for_llm(image: Image.Image, max_pixels: int = 1500000) -> Image.Image:
@@ -285,35 +298,8 @@ async def llm_analyze_image(image: Image.Image, profile: dict) -> dict:
     resized_image = resize_image_for_llm(image)
     base64_image = encode_image_to_base64(resized_image)
     
-    # Define the generate_image tool
-    tools = [
-        {
-            "type": "function",
-            "function": {
-                "name": "generate_image",
-                "description": "Extract a prompt for image generation from an image. Use status 'OK' for successful analysis or 'NOK' if you cannot generate a prompt.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "status": {
-                            "type": "string",
-                            "enum": ["OK", "NOK"],
-                            "description": "Analysis status. 'OK' if successful, 'NOK' if the analysis failed"
-                        },
-                        "prompt": {
-                            "type": "string",
-                            "description": "The generation prompt. If status is 'OK', provide a detailed description. If status is 'NOK', provide an empty string"
-                        },
-                        "error_reason": {
-                            "type": "string",
-                            "description": "If status is 'NOK', explain why the analysis failed. Can be omitted if status is 'OK'"
-                        }
-                    },
-                    "required": ["status", "prompt"]
-                }
-            }
-        }
-    ]
+    # Use the predefined tool definition
+    tools = [GENERATE_IMAGE_TOOL]
     
     payload = {
         "messages": [
@@ -432,7 +418,7 @@ async def get_profile_api(profile_name: str):
     if not validate_profile_name(profile_name):
         raise HTTPException(status_code=400, detail="Invalid profile name")
     
-    files = get_profile_content(profile_name)
+    files = profile_manager.get_content(profile_name)
     return {
         "name": profile_name,
         "extraction_prompt": files.get("extraction_prompt.txt"),
@@ -477,7 +463,7 @@ async def save_profile_api(request: dict):
         "mappings.json": mappings if isinstance(mappings, str) else json.dumps(mappings, indent=4)
     }
     
-    save_profile_files(profile_name, files)
+    profile_manager.save_files(profile_name, files)
     return {"status": "success", "message": f"Profile '{profile_name}' saved"}
 
 
@@ -493,17 +479,13 @@ async def duplicate_profile_api(request: dict):
     if not new_name or not validate_profile_name(new_name):
         raise HTTPException(status_code=400, detail="Invalid new profile name")
     
-    # Check if source exists
-    source_path = PROFILES_DIR / source_name
-    if not source_path.exists():
+    if not (PROFILES_DIR / source_name).exists():
         raise HTTPException(status_code=404, detail=f"Source profile '{source_name}' not found")
     
-    # Check if destination already exists
-    dest_path = PROFILES_DIR / new_name
-    if dest_path.exists():
+    if (PROFILES_DIR / new_name).exists():
         raise HTTPException(status_code=400, detail=f"Profile '{new_name}' already exists")
     
-    duplicate_profile(source_name, new_name)
+    profile_manager.duplicate(source_name, new_name)
     return {"status": "success", "message": f"Profile '{source_name}' duplicated as '{new_name}'"}
 
 
@@ -513,12 +495,10 @@ async def delete_profile_api(profile_name: str):
     if not validate_profile_name(profile_name):
         raise HTTPException(status_code=400, detail="Invalid profile name")
     
-    # Check if profile exists
-    profile_path = PROFILES_DIR / profile_name
-    if not profile_path.exists():
+    if not (PROFILES_DIR / profile_name).exists():
         raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
     
-    delete_profile(profile_name)
+    profile_manager.delete(profile_name)
     return {"status": "success", "message": f"Profile '{profile_name}' deleted"}
 
 
@@ -534,17 +514,13 @@ async def rename_profile_api(request: dict):
     if not new_name or not validate_profile_name(new_name):
         raise HTTPException(status_code=400, detail="Invalid new profile name")
     
-    # Check if old profile exists
-    old_path = PROFILES_DIR / old_name
-    if not old_path.exists():
+    if not (PROFILES_DIR / old_name).exists():
         raise HTTPException(status_code=404, detail=f"Profile '{old_name}' not found")
     
-    # Check if new name already exists
-    new_path = PROFILES_DIR / new_name
-    if new_path.exists():
+    if (PROFILES_DIR / new_name).exists():
         raise HTTPException(status_code=400, detail=f"Profile '{new_name}' already exists")
     
-    rename_profile(old_name, new_name)
+    profile_manager.rename(old_name, new_name)
     return {"status": "success", "message": f"Profile '{old_name}' renamed to '{new_name}'"}
 
 
@@ -554,12 +530,10 @@ async def download_profile_api(profile_name: str):
     if not validate_profile_name(profile_name):
         raise HTTPException(status_code=400, detail="Invalid profile name")
     
-    # Check if profile exists
-    profile_path = PROFILES_DIR / profile_name
-    if not profile_path.exists():
+    if not (PROFILES_DIR / profile_name).exists():
         raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
     
-    zip_path = create_profile_zip(profile_name)
+    zip_path = profile_manager.create_zip(profile_name)
     return FileResponse(
         zip_path,
         media_type="application/zip",
@@ -570,7 +544,7 @@ async def download_profile_api(profile_name: str):
 @app.get("/api/profile-editor/download-all")
 async def download_all_profiles_api():
     """Download all profiles as ZIP."""
-    zip_path = create_all_profiles_zip()
+    zip_path = profile_manager.create_all_zip()
     return FileResponse(
         zip_path,
         media_type="application/zip",

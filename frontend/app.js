@@ -1,49 +1,64 @@
 // Image Generator Frontend
 // Streamlined single-screen flow with auto-trigger analysis and generation
 
-// DOM Elements
-const profileSelect = document.getElementById('profileSelect');
-const profileSelectResult = document.getElementById('profileSelectResult');
-const uploadSection = document.getElementById('uploadSection');
-const fileInput = document.getElementById('fileInput');
-const cameraInput = document.getElementById('cameraInput');
-const cameraBtn = document.getElementById('cameraBtn');
-const previewImage = document.getElementById('previewImage');
-const newBtn = document.getElementById('newBtn');
-const reanalyzeBtn = document.getElementById('reanalyzeBtn');
-const regenerateBtn = document.getElementById('regenerateBtn');
-const upscaleBtn = document.getElementById('upscaleBtn');
-const promptText = document.getElementById('promptText');
-const resolutionSelect = document.getElementById('resolutionSelect');
-const upscaleResolutionSelect = document.getElementById('upscaleResolutionSelect');
-const errorContainer = document.getElementById('errorContainer');
-const errorMessage = document.getElementById('errorMessage');
-const errorClose = document.getElementById('errorClose');
-const tryAgainBtn = document.getElementById('tryAgainBtn');
-const cancelBtn = document.getElementById('cancelBtn');
-const errorActions = document.getElementById('errorActions');
-const downloadBtn = document.getElementById('downloadBtn');
-
-// Configuration Editor DOM Elements
-const configEditorContainer = document.getElementById('configEditorContainer');
-const comfyuiEndpointInput = document.getElementById('comfyuiEndpoint');
-const llmEndpointInput = document.getElementById('llmEndpoint');
-const llmApiKeyInput = document.getElementById('llmApiKey');
-const llmModelSelect = document.getElementById('llmModel');
-const refreshModelsBtn = document.getElementById('refreshModelsBtn');
-const saveConfigBtn = document.getElementById('saveConfigBtn');
-
-// Processing Elements
-const progressFill = document.getElementById('progressFill');
-const stepIndicator1 = document.getElementById('stepIndicator1');
-const stepIndicator2 = document.getElementById('stepIndicator2');
-const stepIndicator3 = document.getElementById('stepIndicator3');
-const processingText = document.getElementById('processingText');
-
-// Screens
-const screen1 = document.getElementById('screen1');
-const screen2 = document.getElementById('screen2');
-const screen3 = document.getElementById('screen3');
+// DOM Element Registry
+const $ = {
+    profileSelect: () => document.getElementById('profileSelect'),
+    profileSelectResult: () => document.getElementById('profileSelectResult'),
+    uploadSection: () => document.getElementById('uploadSection'),
+    fileInput: () => document.getElementById('fileInput'),
+    cameraInput: () => document.getElementById('cameraInput'),
+    cameraBtn: () => document.getElementById('cameraBtn'),
+    previewImage: () => document.getElementById('previewImage'),
+    newBtn: () => document.getElementById('newBtn'),
+    reanalyzeBtn: () => document.getElementById('reanalyzeBtn'),
+    regenerateBtn: () => document.getElementById('regenerateBtn'),
+    upscaleBtn: () => document.getElementById('upscaleBtn'),
+    promptText: () => document.getElementById('promptText'),
+    resolutionSelect: () => document.getElementById('resolutionSelect'),
+    upscaleResolutionSelect: () => document.getElementById('upscaleResolutionSelect'),
+    errorContainer: () => document.getElementById('errorContainer'),
+    errorMessage: () => document.getElementById('errorMessage'),
+    errorClose: () => document.getElementById('errorClose'),
+    tryAgainBtn: () => document.getElementById('tryAgainBtn'),
+    cancelBtn: () => document.getElementById('cancelBtn'),
+    errorActions: () => document.getElementById('errorActions'),
+    downloadBtn: () => document.getElementById('downloadBtn'),
+    configEditorContainer: () => document.getElementById('configEditorContainer'),
+    comfyuiEndpoint: () => document.getElementById('comfyuiEndpoint'),
+    llmEndpoint: () => document.getElementById('llmEndpoint'),
+    llmApiKey: () => document.getElementById('llmApiKey'),
+    llmModel: () => document.getElementById('llmModel'),
+    refreshModelsBtn: () => document.getElementById('refreshModelsBtn'),
+    saveConfigBtn: () => document.getElementById('saveConfigBtn'),
+    progressFill: () => document.getElementById('progressFill'),
+    stepIndicator1: () => document.getElementById('stepIndicator1'),
+    stepIndicator2: () => document.getElementById('stepIndicator2'),
+    stepIndicator3: () => document.getElementById('stepIndicator3'),
+    processingText: () => document.getElementById('processingText'),
+    screen1: () => document.getElementById('screen1'),
+    screen2: () => document.getElementById('screen2'),
+    screen3: () => document.getElementById('screen3'),
+    historyContainer: () => document.getElementById('historyContainer'),
+    resultImage: () => document.getElementById('resultImage'),
+    profileEditorContainer: () => document.getElementById('profileEditorContainer'),
+    profileList: () => document.getElementById('profileList'),
+    editorProfileName: () => document.getElementById('editorProfileName'),
+    editorTabs: () => document.getElementById('editorTabs'),
+    editorContent: () => document.getElementById('editorContent'),
+    editorPlaceholder: () => document.getElementById('editorPlaceholder'),
+    extractionPromptEditor: () => document.getElementById('extractionPromptEditor'),
+    workflowEditor: () => document.getElementById('workflowEditor'),
+    mappingsEditor: () => document.getElementById('mappingsEditor'),
+    saveProfileBtn: () => document.getElementById('saveProfileBtn'),
+    duplicateProfileBtn: () => document.getElementById('duplicateProfileBtn'),
+    renameProfileBtn: () => document.getElementById('renameProfileBtn'),
+    deleteProfileBtn: () => document.getElementById('deleteProfileBtn'),
+    downloadAllBtn: () => document.getElementById('downloadAllBtn'),
+    navGenerate: () => document.getElementById('navGenerate'),
+    navEditor: () => document.getElementById('navEditor'),
+    navConfig: () => document.getElementById('navConfig'),
+};
 
 // State
 let currentProfile = null;
@@ -55,12 +70,12 @@ let isProcessing = false;
 let imageHistory = [];
 const MAX_HISTORY = 10;
 let upscaleResolution = 2048;
-
-// Shared profile state - fetch once, sync all
 let profilesLoaded = false;
-
-// DOM Elements for history
-const historyContainer = document.getElementById('historyContainer');
+let editorCurrentProfile = null;
+let editorProfileData = { extraction_prompt: '', workflow: '', mappings: '' };
+let editorOriginalNames = new Set();
+let currentConfig = null;
+let availableLLMModels = [];
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -69,6 +84,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupMobileCameraButton();
     
     // Setup config editor event listeners
+    const refreshModelsBtn = $.refreshModelsBtn();
+    const saveConfigBtn = $.saveConfigBtn();
     if (refreshModelsBtn) {
         refreshModelsBtn.addEventListener('click', refreshLLMModels);
     }
@@ -119,13 +136,13 @@ function populateProfileSelects() {
         });
         
         // Populate screen 3 profile select
+        const profileSelectResult = $.profileSelectResult();
         profileSelectResult.innerHTML = '';
         availableProfiles.forEach((profile, index) => {
             const option = document.createElement('option');
             option.value = profile.name;
             option.textContent = profile.name;
             profileSelectResult.appendChild(option);
-            
             if (index === 0) {
                 option.selected = true;
             }
@@ -134,21 +151,18 @@ function populateProfileSelects() {
 }
 
 // Profile selection change handler
-profileSelect.addEventListener('change', (e) => {
+function handleProfileChange(e) {
     currentProfile = e.target.value;
-    console.log(`Selected profile: ${currentProfile}`);
-});
+}
 
-// Profile selection change handler for screen 3
-profileSelectResult.addEventListener('change', (e) => {
-    currentProfile = e.target.value;
-    console.log(`Selected profile (screen 3): ${currentProfile}`);
-});
+$.profileSelect().addEventListener('change', handleProfileChange);
+$.profileSelectResult().addEventListener('change', handleProfileChange);
 
 // Upload section click
-uploadSection.addEventListener('click', () => fileInput.click());
+$.uploadSection().addEventListener('click', () => $.fileInput().click());
 
 // Drag and drop
+const uploadSection = $.uploadSection();
 uploadSection.addEventListener('dragover', (e) => {
     e.preventDefault();
     uploadSection.classList.add('dragover');
@@ -168,6 +182,7 @@ uploadSection.addEventListener('drop', (e) => {
 });
 
 // File input change
+const fileInput = $.fileInput();
 fileInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
         handleFile(e.target.files[0]);
@@ -175,6 +190,7 @@ fileInput.addEventListener('change', (e) => {
 });
 
 // Camera input change handler
+const cameraInput = $.cameraInput();
 cameraInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
         handleFile(e.target.files[0]);
@@ -182,6 +198,7 @@ cameraInput.addEventListener('change', (e) => {
 });
 
 // Camera button click handler
+const cameraBtn = $.cameraBtn();
 cameraBtn.addEventListener('click', () => {
     cameraInput.click();
 });
@@ -209,10 +226,8 @@ function handleFile(file) {
     selectedFile = file;
     const reader = new FileReader();
     reader.onload = (e) => {
-        previewImage.src = e.target.result;
-        previewImage.style.display = 'block';
-        
-        // Auto-start analysis and generation
+        $.previewImage().src = e.target.result;
+        $.previewImage().style.display = 'block';
         startProcessing();
     };
     reader.readAsDataURL(file);
@@ -221,20 +236,18 @@ function handleFile(file) {
 function resetState() {
     selectedFile = null;
     currentSeed = null;
-    promptText.value = '';
-    previewImage.style.display = 'none';
-    previewImage.src = '';
-    document.getElementById('resultImage').style.display = 'none';
-    document.getElementById('resultImage').src = '';
-    regenerateBtn.disabled = true;
+    $.promptText().value = '';
+    $.previewImage().style.display = 'none';
+    $.previewImage().src = '';
+    $.resultImage().style.display = 'none';
+    $.resultImage().src = '';
+    $.regenerateBtn().disabled = true;
     hideError();
     resetProgress();
-    // Reset file inputs to allow re-selecting the same file
-    fileInput.value = '';
-    cameraInput.value = '';
-    // Reset profile selections to match screen 1
-    profileSelect.value = currentProfile || '';
-    profileSelectResult.value = currentProfile || '';
+    $.fileInput().value = '';
+    $.cameraInput().value = '';
+    $.profileSelect().value = currentProfile || '';
+    $.profileSelectResult().value = currentProfile || '';
 }
 
 // Image History Functions
@@ -313,32 +326,27 @@ function renderHistory() {
 function removeFromHistory(index) {
     imageHistory.splice(index, 1);
     renderHistory();
-    
-    // If we removed the current result, clear it
     if (index === 0) {
-        const resultImage = document.getElementById('resultImage');
-        resultImage.style.display = 'none';
-        resultImage.src = '';
+        $.resultImage().style.display = 'none';
+        $.resultImage().src = '';
     }
 }
 
 function resetProgress() {
-    progressFill.style.width = '0%';
-    stepIndicator1.classList.add('active');
-    stepIndicator1.classList.remove('completed');
-    stepIndicator2.classList.remove('active', 'completed');
-    stepIndicator3.classList.remove('active', 'completed');
+    $.progressFill().style.width = '0%';
+    $.stepIndicator1().classList.add('active');
+    $.stepIndicator1().classList.remove('completed');
+    $.stepIndicator2().classList.remove('active', 'completed');
+    $.stepIndicator3().classList.remove('active', 'completed');
 }
 
 // Screen navigation
 function showScreen(screenNumber) {
-    [screen1, screen2, screen3].forEach((screen, index) => {
+    [$.screen1(), $.screen2(), $.screen3()].forEach((screen, index) => {
         screen.classList.toggle('active', index + 1 === screenNumber);
     });
-    
-    // Sync profile selection when moving to screen 3
     if (screenNumber === 3) {
-        profileSelectResult.value = currentProfile || '';
+        $.profileSelectResult().value = currentProfile || '';
     }
 }
 
@@ -403,10 +411,8 @@ async function analyzeImage() {
             throw new Error(errorMessage);
         }
         
-        promptText.value = data.prompt;
-        
-        // Move to generation
-        processingText.textContent = 'Generating image...';
+        $.promptText().value = data.prompt;
+        $.processingText().textContent = 'Generating image...';
         
     } catch (err) {
         throw err;
@@ -419,25 +425,22 @@ function generateRandomSeed() {
 }
 
 async function generateImage(upscale = false) {
-    progressFill.style.width = '75%';
+    $.progressFill().style.width = '75%';
     
     const formData = new FormData();
-    formData.append('prompt', promptText.value);
+    formData.append('prompt', $.promptText().value);
     formData.append('profile', currentProfile);
     formData.append('width', currentResolution.width);
     formData.append('height', currentResolution.height);
     
-    // Generate new seed only for plain generation, not for upscaling
     if (!upscale) {
         const seed = generateRandomSeed();
         formData.append('seed', seed);
         currentSeed = seed;
     } else if (currentSeed !== null) {
-        // Use existing seed for upscaling
         formData.append('seed', currentSeed);
     }
     
-    // Add upscale parameters if upscaling
     if (upscale) {
         formData.append('upscale_switch', true);
         formData.append('upscale_resolution', upscaleResolution);
@@ -455,14 +458,13 @@ async function generateImage(upscale = false) {
             throw new Error(data.detail || 'Generation failed');
         }
         
-        const resultImage = document.getElementById('resultImage');
+        const resultImage = $.resultImage();
         resultImage.src = data.image;
         resultImage.onload = () => {
             resultImage.style.display = 'block';
-            regenerateBtn.disabled = false;
-            progressFill.style.width = '100%';
-            // Add to history with the actual prompt used for generation
-            addToHistory(data.image, promptText.value);
+            $.regenerateBtn().disabled = false;
+            $.progressFill().style.width = '100%';
+            addToHistory(data.image, $.promptText().value);
         };
         
     } catch (err) {
@@ -470,17 +472,16 @@ async function generateImage(upscale = false) {
     }
 }
 
-// Re-analyze button handler - only re-analyze, don't regenerate
-reanalyzeBtn.addEventListener('click', async () => {
+// Re-analyze button handler
+$.reanalyzeBtn().addEventListener('click', async () => {
     if (isProcessing) return;
-    
     isProcessing = true;
-    reanalyzeBtn.disabled = true;
+    $.reanalyzeBtn().disabled = true;
     
     try {
-        processingText.textContent = 'Re-analyzing image with LLM...';
-        progressFill.style.width = '50%';
-        stepIndicator2.classList.add('active');
+        $.processingText().textContent = 'Re-analyzing image with LLM...';
+        $.progressFill().style.width = '50%';
+        $.stepIndicator2().classList.add('active');
         
         const formData = new FormData();
         formData.append('file', selectedFile);
@@ -494,93 +495,85 @@ reanalyzeBtn.addEventListener('click', async () => {
         const data = await response.json();
         
         if (!response.ok) {
-            // Use error_reason if provided, otherwise fall back to detail
             const errorMessage = data.detail || 'Analysis failed';
             throw new Error(errorMessage);
         }
         
-        promptText.value = data.prompt;
-        
-        processingText.textContent = 'Analysis complete';
-        progressFill.style.width = '100%';
+        $.promptText().value = data.prompt;
+        $.processingText().textContent = 'Analysis complete';
+        $.progressFill().style.width = '100%';
         
     } catch (err) {
         console.error('Re-analysis failed:', err);
         showError(err.message || 'Re-analysis failed. Please try again.');
     } finally {
         isProcessing = false;
-        reanalyzeBtn.disabled = false;
+        $.reanalyzeBtn().disabled = false;
     }
 });
 
-// Regenerate button handler - only regenerate, don't re-analyze
-regenerateBtn.addEventListener('click', async () => {
+// Regenerate button handler
+$.regenerateBtn().addEventListener('click', async () => {
     if (isProcessing) return;
-    
     isProcessing = true;
-    regenerateBtn.disabled = true;
+    $.regenerateBtn().disabled = true;
     
     try {
-        processingText.textContent = 'Generating image...';
-        progressFill.style.width = '75%';
-        
+        $.processingText().textContent = 'Generating image...';
+        $.progressFill().style.width = '75%';
         await generateImage(false);
-        
-        processingText.textContent = 'Generation complete';
+        $.processingText().textContent = 'Generation complete';
         
     } catch (err) {
         console.error('Regeneration failed:', err);
         showError(err.message || 'Regeneration failed. Please try again.');
     } finally {
         isProcessing = false;
-        regenerateBtn.disabled = false;
+        $.regenerateBtn().disabled = false;
     }
 });
 
 // Upscale button handler
-upscaleBtn.addEventListener('click', async () => {
+$.upscaleBtn().addEventListener('click', async () => {
     if (isProcessing) return;
-    
     isProcessing = true;
-    upscaleBtn.disabled = true;
+    $.upscaleBtn().disabled = true;
     
     try {
-        processingText.textContent = 'Upscaling image...';
-        progressFill.style.width = '75%';
-        
+        $.processingText().textContent = 'Upscaling image...';
+        $.progressFill().style.width = '75%';
         await generateImage(true);
-        
-        processingText.textContent = 'Upscaling complete';
+        $.processingText().textContent = 'Upscaling complete';
         
     } catch (err) {
         console.error('Upscaling failed:', err);
         showError(err.message || 'Upscaling failed. Please try again.');
     } finally {
         isProcessing = false;
-        upscaleBtn.disabled = false;
+        $.upscaleBtn().disabled = false;
     }
 });
 
 // Upscale resolution selector change handler
-upscaleResolutionSelect.addEventListener('change', (e) => {
+$.upscaleResolutionSelect().addEventListener('change', (e) => {
     upscaleResolution = parseInt(e.target.value, 10);
 });
 
-// New button handler - go back to first screen
-newBtn.addEventListener('click', () => {
+// New button handler
+$.newBtn().addEventListener('click', () => {
     resetState();
     showScreen(1);
 });
 
 // Resolution selector change handler
-resolutionSelect.addEventListener('change', (e) => {
+$.resolutionSelect().addEventListener('change', (e) => {
     const [width, height] = e.target.value.split('x').map(Number);
     currentResolution = { width, height };
 });
 
 // Download button handler
-downloadBtn.addEventListener('click', () => {
-    const resultImage = document.getElementById('resultImage');
+$.downloadBtn().addEventListener('click', () => {
+    const resultImage = $.resultImage();
     if (resultImage.src) {
         const link = document.createElement('a');
         link.href = resultImage.src;
@@ -593,93 +586,77 @@ downloadBtn.addEventListener('click', () => {
 
 // Error handling
 function showError(message) {
-    errorMessage.textContent = message;
-    errorContainer.classList.add('show');
+    $.errorMessage().textContent = message;
+    $.errorContainer().classList.add('show');
 }
 
 function hideError() {
-    errorMessage.textContent = "";
-    errorContainer.classList.remove('show');
+    $.errorMessage().textContent = '';
+    $.errorContainer().classList.remove('show');
 }
 
-errorClose.addEventListener('click', hideError);
+$.errorClose().addEventListener('click', hideError);
 
 // Close error on click outside
 document.addEventListener('click', (e) => {
-    if (e.target === errorContainer) {
+    if (e.target === $.errorContainer()) {
         hideError();
     }
 });
 
 // Try again button handler
-tryAgainBtn.addEventListener('click', () => {
+$.tryAgainBtn().addEventListener('click', () => {
     hideErrorActions();
     startProcessing();
 });
 
 // Cancel button handler
-cancelBtn.addEventListener('click', () => {
+$.cancelBtn().addEventListener('click', () => {
     hideErrorActions();
     resetState();
     showScreen(1);
 });
 
 function showErrorActions() {
-    errorActions.style.display = 'flex';
+    $.errorActions().style.display = 'flex';
 }
 
 function hideErrorActions() {
-    errorActions.style.display = 'none';
+    $.errorActions().style.display = 'none';
 }
 
 // ============== Profile Editor Functions ==============
 
-// Profile Editor State
-let editorCurrentProfile = null;
-let editorProfileData = {
-    extraction_prompt: '',
-    workflow: '',
-    mappings: ''
-};
-let editorOriginalNames = new Set(); // Track original names for rename detection
-
 // Navigation functions
 function showGenerateView() {
-    document.getElementById('navGenerate').classList.add('active');
-    document.getElementById('navEditor').classList.remove('active');
-    document.getElementById('navConfig').classList.remove('active');
-    document.getElementById('screen1').parentElement.style.display = 'block';
-    document.getElementById('profileEditorContainer').style.display = 'none';
-    document.getElementById('configEditorContainer').style.display = 'none';
-    // Refresh profiles and update all UIs
+    $.navGenerate().classList.add('active');
+    $.navEditor().classList.remove('active');
+    $.navConfig().classList.remove('active');
+    $.screen1().parentElement.style.display = 'block';
+    $.profileEditorContainer().style.display = 'none';
+    $.configEditorContainer().style.display = 'none';
     loadProfiles().then(() => populateAllProfileUIs());
 }
 
 function showProfileEditor() {
-    document.getElementById('navGenerate').classList.remove('active');
-    document.getElementById('navEditor').classList.add('active');
-    document.getElementById('navConfig').classList.remove('active');
-    document.getElementById('screen1').parentElement.style.display = 'none';
-    document.getElementById('profileEditorContainer').style.display = 'flex';
-    document.getElementById('configEditorContainer').style.display = 'none';
-    // Refresh profiles and update all UIs
+    $.navGenerate().classList.remove('active');
+    $.navEditor().classList.add('active');
+    $.navConfig().classList.remove('active');
+    $.screen1().parentElement.style.display = 'none';
+    $.profileEditorContainer().style.display = 'flex';
+    $.configEditorContainer().style.display = 'none';
     loadProfiles().then(() => populateAllProfileUIs());
 }
 
 function showConfigEditor() {
-    document.getElementById('navGenerate').classList.remove('active');
-    document.getElementById('navEditor').classList.remove('active');
-    document.getElementById('navConfig').classList.add('active');
-    document.getElementById('screen1').parentElement.style.display = 'none';
-    document.getElementById('profileEditorContainer').style.display = 'none';
-    document.getElementById('configEditorContainer').style.display = 'block';
-    // Load configuration
+    $.navGenerate().classList.remove('active');
+    $.navEditor().classList.remove('active');
+    $.navConfig().classList.add('active');
+    $.screen1().parentElement.style.display = 'none';
+    $.profileEditorContainer().style.display = 'none';
+    $.configEditorContainer().style.display = 'block';
     loadConfig();
 }
-
-// Configuration editor functions
-let currentConfig = null;
-let availableLLMModels = [];
 
 // Load configuration from backend
 async function loadConfig() {
@@ -689,19 +666,12 @@ async function loadConfig() {
         
         if (data.providers) {
             currentConfig = data.providers;
-            
-            // Populate form fields
-            document.getElementById('comfyuiEndpoint').value = currentConfig.comfyui_endpoint || '';
-            document.getElementById('llmEndpoint').value = currentConfig.llm_endpoint || '';
-            document.getElementById('llmApiKey').value = currentConfig.llm_apikey || '';
-            
-            // Load LLM models from the backend
+            $.comfyuiEndpoint().value = currentConfig.comfyui_endpoint || '';
+            $.llmEndpoint().value = currentConfig.llm_endpoint || '';
+            $.llmApiKey().value = currentConfig.llm_apikey || '';
             await refreshLLMModels();
-            
-            // Set the current model if it exists in the list
             if (currentConfig.llm_model) {
-                const modelSelect = document.getElementById('llmModel');
-                modelSelect.value = currentConfig.llm_model;
+                $.llmModel().value = currentConfig.llm_model;
             }
         }
     } catch (err) {
@@ -712,10 +682,10 @@ async function loadConfig() {
 
 // Save configuration to backend
 async function saveConfig() {
-    const comfyuiEndpoint = document.getElementById('comfyuiEndpoint').value.trim();
-    const llmEndpoint = document.getElementById('llmEndpoint').value.trim();
-    const llmApiKey = document.getElementById('llmApiKey').value.trim();
-    const llmModel = document.getElementById('llmModel').value;
+    const comfyuiEndpoint = $.comfyuiEndpoint().value.trim();
+    const llmEndpoint = $.llmEndpoint().value.trim();
+    const llmApiKey = $.llmApiKey().value.trim();
+    const llmModel = $.llmModel().value;
     
     // Validate required fields
     if (!comfyuiEndpoint || !llmEndpoint || !llmApiKey || !llmModel) {
@@ -756,8 +726,7 @@ async function saveConfig() {
 
 // Refresh LLM models from the backend
 async function refreshLLMModels() {
-    const modelSelect = document.getElementById('llmModel');
-    
+    const modelSelect = $.llmModel();
     modelSelect.innerHTML = '<option value="">Loading models...</option>';
     
     try {
@@ -765,11 +734,7 @@ async function refreshLLMModels() {
         
         if (response.ok) {
             const data = await response.json();
-            
-            // Extract model names/IDs
             availableLLMModels = data.models || [];
-            
-            // Populate the select dropdown
             modelSelect.innerHTML = '';
             if (availableLLMModels.length > 0) {
                 availableLLMModels.forEach(model => {
@@ -789,21 +754,20 @@ async function refreshLLMModels() {
         }
     } catch (err) {
         console.error('Failed to fetch LLM models:', err);
-        modelSelect.innerHTML = '<option value="">Failed to load models</option>';
+        $.llmModel().innerHTML = '<option value="">Failed to load models</option>';
         showError('Failed to load LLM models. Check the LLM endpoint.');
     }
 }
 
 // Populate editor profile list from already-loaded data
 function populateEditorProfileList() {
-    const profileList = document.getElementById('profileList');
+    const profileList = $.profileList();
     profileList.innerHTML = '';
     
     if (availableProfiles.length > 0) {
         editorOriginalNames.clear();
         availableProfiles.forEach(profile => {
             editorOriginalNames.add(profile.name);
-            
             const profileItem = document.createElement('div');
             profileItem.className = 'profile-item';
             profileItem.dataset.name = profile.name;
@@ -823,7 +787,6 @@ function populateEditorProfileList() {
 
 // Select a profile for editing
 async function selectProfileForEdit(profileName) {
-    // Highlight selected profile
     document.querySelectorAll('.profile-item').forEach(item => {
         item.classList.remove('selected');
         if (item.dataset.name === profileName) {
@@ -832,20 +795,15 @@ async function selectProfileForEdit(profileName) {
     });
     
     editorCurrentProfile = profileName;
-    document.getElementById('editorProfileName').textContent = profileName;
+    $.editorProfileName().textContent = profileName;
+    $.saveProfileBtn().disabled = false;
+    $.duplicateProfileBtn().disabled = false;
+    $.renameProfileBtn().disabled = false;
+    $.deleteProfileBtn().disabled = false;
+    $.editorTabs().style.display = 'flex';
+    $.editorContent().style.display = 'block';
+    $.editorPlaceholder().style.display = 'none';
     
-    // Enable action buttons
-    document.getElementById('saveProfileBtn').disabled = false;
-    document.getElementById('duplicateProfileBtn').disabled = false;
-    document.getElementById('renameProfileBtn').disabled = false;
-    document.getElementById('deleteProfileBtn').disabled = false;
-    
-    // Show editor UI
-    document.getElementById('editorTabs').style.display = 'flex';
-    document.getElementById('editorContent').style.display = 'block';
-    document.getElementById('editorPlaceholder').style.display = 'none';
-    
-    // Load profile content
     try {
         const response = await fetch(`/api/profile-editor/profile/${encodeURIComponent(profileName)}`);
         const data = await response.json();
@@ -854,11 +812,9 @@ async function selectProfileForEdit(profileName) {
         editorProfileData.workflow = data.workflow || '{}';
         editorProfileData.mappings = data.mappings || '{}';
         
-        document.getElementById('extractionPromptEditor').value = editorProfileData.extraction_prompt;
-        document.getElementById('workflowEditor').value = editorProfileData.workflow;
-        document.getElementById('mappingsEditor').value = editorProfileData.mappings;
-        
-        // Reset to first tab
+        $.extractionPromptEditor().value = editorProfileData.extraction_prompt;
+        $.workflowEditor().value = editorProfileData.workflow;
+        $.mappingsEditor().value = editorProfileData.mappings;
         switchEditorTab('extraction_prompt');
     } catch (err) {
         console.error('Failed to load profile content:', err);
@@ -868,25 +824,21 @@ async function selectProfileForEdit(profileName) {
 
 // Tab switching
 function switchEditorTab(tabName) {
-    // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('active');
         if (btn.dataset.tab === tabName) {
             btn.classList.add('active');
         }
     });
-    
-    // Show corresponding textarea
-    document.getElementById('extractionPromptEditor').style.display = 'none';
-    document.getElementById('workflowEditor').style.display = 'none';
-    document.getElementById('mappingsEditor').style.display = 'none';
-    
+    $.extractionPromptEditor().style.display = 'none';
+    $.workflowEditor().style.display = 'none';
+    $.mappingsEditor().style.display = 'none';
     if (tabName === 'extraction_prompt') {
-        document.getElementById('extractionPromptEditor').style.display = 'block';
+        $.extractionPromptEditor().style.display = 'block';
     } else if (tabName === 'workflow') {
-        document.getElementById('workflowEditor').style.display = 'block';
+        $.workflowEditor().style.display = 'block';
     } else if (tabName === 'mappings') {
-        document.getElementById('mappingsEditor').style.display = 'block';
+        $.mappingsEditor().style.display = 'block';
     }
 }
 
@@ -902,12 +854,11 @@ document.addEventListener('DOMContentLoaded', () => {
 // Save current profile
 async function saveCurrentProfile() {
     if (!editorCurrentProfile) return;
-    
     const payload = {
         name: editorCurrentProfile,
-        extraction_prompt: document.getElementById('extractionPromptEditor').value,
-        workflow: document.getElementById('workflowEditor').value,
-        mappings: document.getElementById('mappingsEditor').value
+        extraction_prompt: $.extractionPromptEditor().value,
+        workflow: $.workflowEditor().value,
+        mappings: $.mappingsEditor().value
     };
     
     try {
@@ -1008,7 +959,7 @@ async function renameCurrentProfile() {
             editorCurrentProfile = newName;
             loadProfiles().then(() => {
                 populateAllProfileUIs();
-                document.getElementById('editorProfileName').textContent = newName;
+                $.editorProfileName().textContent = newName;
             });
         } else {
             showError(data.detail || 'Failed to rename profile');
@@ -1022,7 +973,6 @@ async function renameCurrentProfile() {
 // Delete current profile
 async function deleteCurrentProfile() {
     if (!editorCurrentProfile) return;
-    
     if (!confirm(`Are you sure you want to delete profile "${editorCurrentProfile}"? This action cannot be undone.`)) {
         return;
     }
@@ -1031,32 +981,26 @@ async function deleteCurrentProfile() {
         const response = await fetch(`/api/profile-editor/profile/${encodeURIComponent(editorCurrentProfile)}`, {
             method: 'DELETE'
         });
-        
         const data = await response.json();
         
         if (response.ok) {
             showNotification('Profile deleted successfully');
             editorCurrentProfile = null;
             editorProfileData = { extraction_prompt: '', workflow: '', mappings: '' };
-            
-            // Reset editor UI
-            document.getElementById('editorProfileName').textContent = 'Select a profile';
-            document.getElementById('saveProfileBtn').disabled = true;
-            document.getElementById('duplicateProfileBtn').disabled = true;
-            document.getElementById('renameProfileBtn').disabled = true;
-            document.getElementById('deleteProfileBtn').disabled = true;
-            document.getElementById('editorTabs').style.display = 'none';
-            document.getElementById('editorContent').style.display = 'none';
-            document.getElementById('editorPlaceholder').style.display = 'block';
-            document.getElementById('extractionPromptEditor').value = '';
-            document.getElementById('workflowEditor').value = '';
-            document.getElementById('mappingsEditor').value = '';
-            
-            // Remove selected from list
+            $.editorProfileName().textContent = 'Select a profile';
+            $.saveProfileBtn().disabled = true;
+            $.duplicateProfileBtn().disabled = true;
+            $.renameProfileBtn().disabled = true;
+            $.deleteProfileBtn().disabled = true;
+            $.editorTabs().style.display = 'none';
+            $.editorContent().style.display = 'none';
+            $.editorPlaceholder().style.display = 'block';
+            $.extractionPromptEditor().value = '';
+            $.workflowEditor().value = '';
+            $.mappingsEditor().value = '';
             document.querySelectorAll('.profile-item').forEach(item => {
                 item.classList.remove('selected');
             });
-            
             loadProfiles().then(() => populateAllProfileUIs());
         } else {
             showError(data.detail || 'Failed to delete profile');
@@ -1079,12 +1023,12 @@ function downloadProfile(profileName) {
 
 // Show notification
 function showNotification(message) {
-    // Reuse error container for notifications with green color
+    const errorContainer = $.errorContainer();
+    const errorMessage = $.errorMessage();
     errorMessage.style.color = '#4caf50';
     errorMessage.textContent = message;
     errorContainer.classList.add('show');
     errorContainer.classList.add('notification');
-    
     setTimeout(() => {
         errorContainer.classList.remove('show');
         errorContainer.classList.remove('notification');
