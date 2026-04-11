@@ -242,7 +242,7 @@ function resetState() {
     $.resultImage().style.display = 'none';
     $.resultImage().src = '';
     $.regenerateBtn().disabled = true;
-    hideError();
+    hideNotification();
     resetProgress();
     $.fileInput().value = '';
     $.cameraInput().value = '';
@@ -584,39 +584,100 @@ $.downloadBtn().addEventListener('click', () => {
     }
 });
 
-// Error handling
-function showError(message) {
-    $.errorMessage().textContent = message;
-    $.errorContainer().classList.add('show');
+// ============== Unified Notification System ==============
+
+/**
+ * Shows a notification (error or success) with automatic dismissal
+ * @param {string} message - The notification message
+ * @param {boolean} isSuccess - If true, shows as success notification; otherwise shows as error
+ * @param {number} duration - Auto-dismiss duration in milliseconds (0 to disable auto-dismiss)
+ */
+function showNotification(message, isSuccess = false, duration = 3000) {
+    const errorContainer = $.errorContainer();
+    const errorMessage = $.errorMessage();
+    const errorClose = $.errorClose();
+    
+    // Clear any existing timeout
+    if (window.notificationTimeout) {
+        clearTimeout(window.notificationTimeout);
+    }
+    
+    // Set message and styling based on type
+    errorMessage.textContent = message;
+    if (isSuccess) {
+        errorMessage.style.color = ''; // Will use CSS class for color
+        errorContainer.classList.add('notification');
+        errorClose.style.color = ''; // Will use CSS class for color
+    } else {
+        errorMessage.style.color = ''; // Will use CSS class for color
+        errorContainer.classList.remove('notification');
+        errorClose.style.color = ''; // Will use CSS class for color
+    }
+    
+    // Show the notification
+    errorContainer.classList.add('show');
+    
+    // Auto-dismiss after duration (if specified)
+    if (duration > 0) {
+        window.notificationTimeout = setTimeout(() => {
+            hideNotification();
+        }, duration);
+    }
 }
 
-function hideError() {
-    $.errorMessage().textContent = '';
-    $.errorContainer().classList.remove('show');
+/**
+ * Hides the notification
+ */
+function hideNotification() {
+    const errorContainer = $.errorContainer();
+    const errorMessage = $.errorMessage();
+    const errorClose = $.errorClose();
+    
+    // Clear any existing timeout
+    if (window.notificationTimeout) {
+        clearTimeout(window.notificationTimeout);
+    }
+    
+    errorMessage.textContent = '';
+    errorContainer.classList.remove('show', 'notification');
+    // Remove inline color styles to let CSS classes take over
+    if (errorMessage.style.color) {
+        errorMessage.style.removeProperty('color');
+    }
+    if (errorClose.style.color) {
+        errorClose.style.removeProperty('color');
+    }
 }
 
-$.errorClose().addEventListener('click', hideError);
+/**
+ * Shows error notification (alias for showNotification with isSuccess=false)
+ * @param {string} message - The error message
+ * @param {number} duration - Auto-dismiss duration in milliseconds (0 to disable auto-dismiss)
+ */
+function showError(message, duration = 3000) {
+    showNotification(message, false, duration);
+}
 
-// Close error on click outside
+/**
+ * Shows success notification (alias for showNotification with isSuccess=true)
+ * @param {string} message - The success message
+ * @param {number} duration - Auto-dismiss duration in milliseconds (0 to disable auto-dismiss)
+ */
+function showSuccess(message, duration = 3000) {
+    showNotification(message, true, duration);
+}
+
+// Close notification on X button click
+$.errorClose().addEventListener('click', hideNotification);
+
+// Close notification on click outside
 document.addEventListener('click', (e) => {
     if (e.target === $.errorContainer()) {
-        hideError();
+        hideNotification();
     }
 });
 
-// Try again button handler
-$.tryAgainBtn().addEventListener('click', () => {
-    hideErrorActions();
-    startProcessing();
-});
-
-// Cancel button handler
-$.cancelBtn().addEventListener('click', () => {
-    hideErrorActions();
-    resetState();
-    showScreen(1);
-});
-
+// Error actions (Try Again / Cancel buttons) - only shown for errors, not success
 function showErrorActions() {
     $.errorActions().style.display = 'flex';
 }
@@ -624,6 +685,21 @@ function showErrorActions() {
 function hideErrorActions() {
     $.errorActions().style.display = 'none';
 }
+
+// Try again button handler
+$.tryAgainBtn().addEventListener('click', () => {
+    hideErrorActions();
+    hideNotification();
+    startProcessing();
+});
+
+// Cancel button handler
+$.cancelBtn().addEventListener('click', () => {
+    hideErrorActions();
+    hideNotification();
+    resetState();
+    showScreen(1);
+});
 
 // ============== Profile Editor Functions ==============
 
@@ -713,7 +789,7 @@ async function saveConfig() {
         
         if (response.ok) {
             currentConfig = newConfig.providers;
-            showError('Configuration saved successfully!', true);
+            showSuccess('Configuration saved successfully!');
         } else {
             const error = await response.json();
             showError(error.detail || 'Failed to save configuration');
@@ -871,7 +947,7 @@ async function saveCurrentProfile() {
         const data = await response.json();
         
         if (response.ok) {
-            showNotification('Profile saved successfully');
+            showSuccess('Profile saved successfully');
             // Refresh profiles and update all UIs if name changed
             if (!editorOriginalNames.has(editorCurrentProfile)) {
                 loadProfiles().then(() => populateAllProfileUIs());
@@ -910,7 +986,7 @@ async function duplicateCurrentProfile() {
         const data = await response.json();
         
         if (response.ok) {
-            showNotification('Profile duplicated successfully');
+            showSuccess('Profile duplicated successfully');
             loadProfiles().then(() => {
                 populateAllProfileUIs();
                 selectProfileForEdit(newName);
@@ -955,7 +1031,7 @@ async function renameCurrentProfile() {
         const data = await response.json();
         
         if (response.ok) {
-            showNotification('Profile renamed successfully');
+            showSuccess('Profile renamed successfully');
             editorCurrentProfile = newName;
             loadProfiles().then(() => {
                 populateAllProfileUIs();
@@ -984,7 +1060,7 @@ async function deleteCurrentProfile() {
         const data = await response.json();
         
         if (response.ok) {
-            showNotification('Profile deleted successfully');
+            showSuccess('Profile deleted successfully');
             editorCurrentProfile = null;
             editorProfileData = { extraction_prompt: '', workflow: '', mappings: '' };
             $.editorProfileName().textContent = 'Select a profile';
@@ -1021,17 +1097,3 @@ function downloadProfile(profileName) {
     window.location.href = `/api/profile-editor/download/${encodeURIComponent(profileName)}`;
 }
 
-// Show notification
-function showNotification(message) {
-    const errorContainer = $.errorContainer();
-    const errorMessage = $.errorMessage();
-    errorMessage.style.color = '#4caf50';
-    errorMessage.textContent = message;
-    errorContainer.classList.add('show');
-    errorContainer.classList.add('notification');
-    setTimeout(() => {
-        errorContainer.classList.remove('show');
-        errorContainer.classList.remove('notification');
-        errorMessage.style.color = '';
-    }, 3000);
-}

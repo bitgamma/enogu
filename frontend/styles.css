@@ -480,7 +480,6 @@ label {
 .error-close {
     background: none;
     border: none;
-    color: var(--color-error);
     font-size: 18px;
     cursor: pointer;
     padding: 0;
@@ -491,6 +490,16 @@ label {
 
 .error-close:hover {
     opacity: 1;
+}
+
+/* Close button color for error notifications */
+.error-container .error-close {
+    color: var(--color-error);
+}
+
+/* Close button color for success/notification messages */
+.error-container.notification .error-close {
+    color: var(--color-success);
 }
 
 /* Responsive */
