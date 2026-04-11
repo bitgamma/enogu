@@ -695,7 +695,7 @@ async function loadConfig() {
             document.getElementById('llmEndpoint').value = currentConfig.llm_endpoint || '';
             document.getElementById('llmApiKey').value = currentConfig.llm_apikey || '';
             
-            // Load LLM models from the endpoint
+            // Load LLM models from the backend
             await refreshLLMModels();
             
             // Set the current model if it exists in the list
@@ -754,55 +754,20 @@ async function saveConfig() {
     }
 }
 
-// Refresh LLM models from the LLM endpoint
+// Refresh LLM models from the backend
 async function refreshLLMModels() {
-    const llmEndpoint = document.getElementById('llmEndpoint').value.trim();
-    const llmApiKey = document.getElementById('llmApiKey').value.trim();
     const modelSelect = document.getElementById('llmModel');
-    
-    if (!llmEndpoint) {
-        modelSelect.innerHTML = '<option value="">Enter LLM endpoint first</option>';
-        return;
-    }
     
     modelSelect.innerHTML = '<option value="">Loading models...</option>';
     
-    // Build headers with optional Bearer authentication
-    const headers = {};
-    if (llmApiKey) {
-        headers['Authorization'] = `Bearer ${llmApiKey}`;
-    }
-    
     try {
-        // Try common endpoints for listing models
-        let modelsEndpoint = `${llmEndpoint}/models`;
-        if (!llmEndpoint.endsWith('/api/v1')) {
-            // If endpoint doesn't end with /api/v1, try appending /models directly
-            modelsEndpoint = llmEndpoint.endsWith('/') ? `${llmEndpoint}models` : `${llmEndpoint}/models`;
-        }
-        
-        const response = await fetch(modelsEndpoint, { headers });
+        const response = await fetch('/api/config/models');
         
         if (response.ok) {
             const data = await response.json();
             
-            // Handle different response formats
-            let models = [];
-            if (Array.isArray(data)) {
-                models = data;
-            } else if (data.models && Array.isArray(data.models)) {
-                models = data.models;
-            } else if (data.data && Array.isArray(data.data)) {
-                models = data.data;
-            }
-            
             // Extract model names/IDs
-            availableLLMModels = models.map(model => {
-                if (typeof model === 'string') {
-                    return model;
-                }
-                return model.id || model.name || model.model;
-            }).filter(Boolean);
+            availableLLMModels = data.models || [];
             
             // Populate the select dropdown
             modelSelect.innerHTML = '';
@@ -817,29 +782,10 @@ async function refreshLLMModels() {
                 modelSelect.innerHTML = '<option value="">No models found</option>';
             }
         } else {
-            // Try alternative endpoint format
-            const altEndpoint = `${llmEndpoint.replace('/api/v1', '')}/models`;
-            const altResponse = await fetch(altEndpoint, { headers });
-            
-            if (altResponse.ok) {
-                const data = await altResponse.json();
-                availableLLMModels = data.models || data.data || [];
-                
-                modelSelect.innerHTML = '';
-                if (availableLLMModels.length > 0) {
-                    availableLLMModels.forEach(model => {
-                        const option = document.createElement('option');
-                        option.value = model;
-                        option.textContent = model;
-                        modelSelect.appendChild(option);
-                    });
-                } else {
-                    modelSelect.innerHTML = '<option value="">No models found</option>';
-                }
-            } else {
-                modelSelect.innerHTML = '<option value="">Failed to load models</option>';
-                console.error('Failed to fetch models:', await response.text());
-            }
+            const error = await response.json();
+            modelSelect.innerHTML = '<option value="">Failed to load models</option>';
+            console.error('Failed to fetch models:', error.detail);
+            showError(error.detail || 'Failed to load LLM models. Check the LLM endpoint.');
         }
     } catch (err) {
         console.error('Failed to fetch LLM models:', err);

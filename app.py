@@ -610,6 +610,82 @@ async def save_config_providers(request: dict):
     return {"success": True, "providers": providers}
 
 
+@app.get("/api/config/models")
+async def get_llm_models():
+    """Fetch available LLM models from the configured LLM endpoint."""
+    providers = CONFIG.get("providers", {})
+    llm_endpoint = providers.get("llm_endpoint", "")
+    llm_apikey = providers.get("llm_apikey", "")
+    
+    if not llm_endpoint:
+        raise HTTPException(status_code=400, detail="LLM endpoint not configured")
+    
+    # Build headers with optional Bearer authentication
+    headers = {}
+    if llm_apikey:
+        headers["Authorization"] = f"Bearer {llm_apikey}"
+    
+    try:
+        # Try common endpoints for listing models
+        models_endpoint = f"{llm_endpoint}/models"
+        if not llm_endpoint.endswith("/api/v1"):
+            # If endpoint doesn't end with /api/v1, try appending /models directly
+            models_endpoint = llm_endpoint.rstrip("/") + "/models"
+        
+        response = requests.get(models_endpoint, headers=headers, timeout=10)
+        
+        if response.ok:
+            data = response.json()
+            
+            # Handle different response formats
+            models = []
+            if isinstance(data, list):
+                models = data
+            elif isinstance(data, dict):
+                if "models" in data and isinstance(data["models"], list):
+                    models = data["models"]
+                elif "data" in data and isinstance(data["data"], list):
+                    models = data["data"]
+            
+            # Extract model names/IDs
+            model_list = []
+            for model in models:
+                if isinstance(model, str):
+                    model_list.append(model)
+                elif isinstance(model, dict):
+                    model_id = model.get("id") or model.get("name") or model.get("model")
+                    if model_id:
+                        model_list.append(model_id)
+            
+            return {"models": model_list}
+        else:
+            # Try alternative endpoint format
+            alt_endpoint = llm_endpoint.replace("/api/v1", "").rstrip("/") + "/models"
+            alt_response = requests.get(alt_endpoint, headers=headers, timeout=10)
+            
+            if alt_response.ok:
+                data = alt_response.json()
+                models = data.get("models") or data.get("data") or []
+                
+                model_list = []
+                for model in models:
+                    if isinstance(model, str):
+                        model_list.append(model)
+                    elif isinstance(model, dict):
+                        model_id = model.get("id") or model.get("name") or model.get("model")
+                        if model_id:
+                            model_list.append(model_id)
+                
+                return {"models": model_list}
+            else:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Failed to fetch models from LLM endpoint: {alt_response.status_code} {alt_response.text}"
+                )
+    except requests.RequestException as e:
+        raise HTTPException(status_code=502, detail=f"Failed to connect to LLM endpoint: {str(e)}")
+
+
 @app.post("/api/analyze")
 async def analyze_image(
     file: UploadFile = File(...),
