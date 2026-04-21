@@ -118,35 +118,31 @@ function populateAllProfileUIs() {
     populateEditorProfileList();
 }
 
+/**
+ * Populate a select element with profile options.
+ * @param {HTMLSelectElement} selectElement - The select element to populate
+ * @param {Array} profiles - Array of profile objects with 'name' property
+ * @param {Function} onSelect - Callback when first profile is selected (with profile name)
+ */
+function populateSelect(selectElement, profiles, onSelect) {
+    selectElement.innerHTML = '';
+    profiles.forEach((profile, index) => {
+        const option = document.createElement('option');
+        option.value = profile.name;
+        option.textContent = profile.name;
+        selectElement.appendChild(option);
+        if (index === 0 && onSelect) {
+            option.selected = true;
+            onSelect(profile.name);
+        }
+    });
+}
+
 // Populate both profile selects from already-loaded data
 function populateProfileSelects() {
     if (availableProfiles.length > 0) {
-        // Populate screen 1 profile select
-        profileSelect.innerHTML = '';
-        availableProfiles.forEach((profile, index) => {
-            const option = document.createElement('option');
-            option.value = profile.name;
-            option.textContent = profile.name;
-            profileSelect.appendChild(option);
-            
-            if (index === 0) {
-                option.selected = true;
-                currentProfile = profile.name;
-            }
-        });
-        
-        // Populate screen 3 profile select
-        const profileSelectResult = $.profileSelectResult();
-        profileSelectResult.innerHTML = '';
-        availableProfiles.forEach((profile, index) => {
-            const option = document.createElement('option');
-            option.value = profile.name;
-            option.textContent = profile.name;
-            profileSelectResult.appendChild(option);
-            if (index === 0) {
-                option.selected = true;
-            }
-        });
+        populateSelect(profileSelect, availableProfiles, (name) => { currentProfile = name; });
+        populateSelect($.profileSelectResult(), availableProfiles);
     }
 }
 
@@ -472,17 +468,43 @@ async function generateImage(upscale = false) {
     }
 }
 
+/**
+ * Wrapper for async button handlers with common loading/error/disabled state management.
+ * @param {HTMLElement} btn - The button element
+ * @param {string} loadingText - Text to show in processing area
+ * @param {string} completeText - Text to show on completion
+ * @param {string} progressWidth - Progress bar width percentage
+ * @param {Function} operation - Async function to execute
+ * @param {string} errorMsg - Error message prefix
+ */
+function createAsyncHandler(btn, loadingText, completeText, progressWidth, operation, errorMsg) {
+    return async () => {
+        if (isProcessing) return;
+        isProcessing = true;
+        btn.disabled = true;
+        try {
+            $.processingText().textContent = loadingText;
+            $.progressFill().style.width = progressWidth;
+            await operation();
+            $.processingText().textContent = completeText;
+        } catch (err) {
+            console.error(`${errorMsg} failed:`, err);
+            showError(err.message || `${errorMsg} failed. Please try again.`);
+        } finally {
+            isProcessing = false;
+            btn.disabled = false;
+        }
+    };
+}
+
 // Re-analyze button handler
-$.reanalyzeBtn().addEventListener('click', async () => {
-    if (isProcessing) return;
-    isProcessing = true;
-    $.reanalyzeBtn().disabled = true;
-    
-    try {
-        $.processingText().textContent = 'Re-analyzing image with LLM...';
-        $.progressFill().style.width = '50%';
+$.reanalyzeBtn().addEventListener('click', createAsyncHandler(
+    $.reanalyzeBtn(),
+    'Re-analyzing image with LLM...',
+    'Analysis complete',
+    '100%',
+    async () => {
         $.stepIndicator2().classList.add('active');
-        
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('profile', currentProfile);
@@ -500,59 +522,29 @@ $.reanalyzeBtn().addEventListener('click', async () => {
         }
         
         $.promptText().value = data.prompt;
-        $.processingText().textContent = 'Analysis complete';
-        $.progressFill().style.width = '100%';
-        
-    } catch (err) {
-        console.error('Re-analysis failed:', err);
-        showError(err.message || 'Re-analysis failed. Please try again.');
-    } finally {
-        isProcessing = false;
-        $.reanalyzeBtn().disabled = false;
-    }
-});
+    },
+    'Re-analysis'
+));
 
 // Regenerate button handler
-$.regenerateBtn().addEventListener('click', async () => {
-    if (isProcessing) return;
-    isProcessing = true;
-    $.regenerateBtn().disabled = true;
-    
-    try {
-        $.processingText().textContent = 'Generating image...';
-        $.progressFill().style.width = '75%';
-        await generateImage(false);
-        $.processingText().textContent = 'Generation complete';
-        
-    } catch (err) {
-        console.error('Regeneration failed:', err);
-        showError(err.message || 'Regeneration failed. Please try again.');
-    } finally {
-        isProcessing = false;
-        $.regenerateBtn().disabled = false;
-    }
-});
+$.regenerateBtn().addEventListener('click', createAsyncHandler(
+    $.regenerateBtn(),
+    'Generating image...',
+    'Generation complete',
+    '75%',
+    () => generateImage(false),
+    'Regeneration'
+));
 
 // Upscale button handler
-$.upscaleBtn().addEventListener('click', async () => {
-    if (isProcessing) return;
-    isProcessing = true;
-    $.upscaleBtn().disabled = true;
-    
-    try {
-        $.processingText().textContent = 'Upscaling image...';
-        $.progressFill().style.width = '75%';
-        await generateImage(true);
-        $.processingText().textContent = 'Upscaling complete';
-        
-    } catch (err) {
-        console.error('Upscaling failed:', err);
-        showError(err.message || 'Upscaling failed. Please try again.');
-    } finally {
-        isProcessing = false;
-        $.upscaleBtn().disabled = false;
-    }
-});
+$.upscaleBtn().addEventListener('click', createAsyncHandler(
+    $.upscaleBtn(),
+    'Upscaling image...',
+    'Upscaling complete',
+    '75%',
+    () => generateImage(true),
+    'Upscaling'
+));
 
 // Upscale resolution selector change handler
 $.upscaleResolutionSelect().addEventListener('change', (e) => {
@@ -705,33 +697,43 @@ $.cancelBtn().addEventListener('click', () => {
 
 // Navigation functions
 function showGenerateView() {
-    $.navGenerate().classList.add('active');
-    $.navEditor().classList.remove('active');
-    $.navConfig().classList.remove('active');
-    $.screen1().parentElement.style.display = 'block';
-    $.profileEditorContainer().style.display = 'none';
-    $.configEditorContainer().style.display = 'none';
-    loadProfiles().then(() => populateAllProfileUIs());
+    switchView('generate', null, true);
 }
 
 function showProfileEditor() {
-    $.navGenerate().classList.remove('active');
-    $.navEditor().classList.add('active');
-    $.navConfig().classList.remove('active');
-    $.screen1().parentElement.style.display = 'none';
-    $.profileEditorContainer().style.display = 'flex';
-    $.configEditorContainer().style.display = 'none';
-    loadProfiles().then(() => populateAllProfileUIs());
+    switchView('generate', 'editor', true);
 }
 
 function showConfigEditor() {
-    $.navGenerate().classList.remove('active');
-    $.navEditor().classList.remove('active');
-    $.navConfig().classList.add('active');
-    $.screen1().parentElement.style.display = 'none';
-    $.profileEditorContainer().style.display = 'none';
-    $.configEditorContainer().style.display = 'block';
+    switchView(['generate', 'editor'], 'config', false);
     loadConfig();
+}
+
+/**
+ * Switch between main views (Generate, Profile Editor, Settings).
+ * @param {string|string[]} hideViews - View(s) to hide ('generate', 'editor', 'config')
+ * @param {string|null} showView - View to show ('generate', 'editor', 'config') or null for generate screen
+ * @param {boolean} refreshProfiles - Whether to refresh profiles after switching
+ */
+function switchView(hideViews, showView, refreshProfiles) {
+    const hideList = Array.isArray(hideViews) ? hideViews : [hideViews];
+    
+    // Update nav buttons
+    const isActiveGenerate = !hideList.includes('generate') && showView === 'generate';
+    const isActiveEditor = !hideList.includes('editor') && showView === 'editor';
+    const isActiveConfig = !hideList.includes('config') && showView === 'config';
+    
+    $.navGenerate()?.classList.toggle('active', isActiveGenerate);
+    $.navEditor()?.classList.toggle('active', isActiveEditor);
+    $.navConfig()?.classList.toggle('active', isActiveConfig);
+    
+    $.screen1().parentElement.style.display = showView === null ? 'block' : 'none';
+    $.profileEditorContainer().style.display = showView === 'editor' ? 'flex' : 'none';
+    $.configEditorContainer().style.display = showView === 'config' ? 'block' : 'none';
+    
+    if (refreshProfiles) {
+        loadProfiles().then(() => populateAllProfileUIs());
+    }
 }
 
 // Load configuration from backend
@@ -900,21 +902,29 @@ async function selectProfileForEdit(profileName) {
 
 // Tab switching
 function switchEditorTab(tabName) {
+    // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.dataset.tab === tabName) {
-            btn.classList.add('active');
-        }
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
     });
-    $.extractionPromptEditor().style.display = 'none';
-    $.workflowEditor().style.display = 'none';
-    $.mappingsEditor().style.display = 'none';
-    if (tabName === 'extraction_prompt') {
-        $.extractionPromptEditor().style.display = 'block';
-    } else if (tabName === 'workflow') {
-        $.workflowEditor().style.display = 'block';
-    } else if (tabName === 'mappings') {
-        $.mappingsEditor().style.display = 'block';
+    
+    // Map tab names to $ method names
+    const methodNames = {
+        extraction_prompt: 'extractionPromptEditor',
+        workflow: 'workflowEditor',
+        mappings: 'mappingsEditor'
+    };
+    
+    // Hide all editors, show selected
+    document.querySelectorAll('.editor-textarea').forEach(el => {
+        el.style.display = 'none';
+    });
+    
+    const methodName = methodNames[tabName];
+    if (methodName && $[methodName]) {
+        const editorEl = $[methodName]();
+        if (editorEl) {
+            editorEl.style.display = 'block';
+        }
     }
 }
 

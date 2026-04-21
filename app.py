@@ -6,12 +6,14 @@ Supports multiple profiles for different generation configurations.
 
 import asyncio
 import base64
+import copy
 import io
 import json
 import re
 import shutil
 import tempfile
 import zipfile
+from functools import wraps
 from pathlib import Path
 
 import requests
@@ -22,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 # Default system prompt for tool calling
-DEFAULT_SYSTEM_PROMPT = "You are an image analysis assistant specialized in extracting image generation prompts. Your task is to analyze the uploaded image and extract a detailed prompt for image generation. When you analyze the image, call the generate_image tool with your extracted prompt and status."
+DEFAULT_SYSTEM_PROMPT = "You are an image analysis assistant specialized in extracting image generation prompts. Your task is to analyze the uploaded image and extract a detailed prompt for image generation. You MUST call the generate_image tool with your extracted prompt and status."
 
 # LLM tool definition for image analysis
 GENERATE_IMAGE_TOOL = {
@@ -127,7 +129,7 @@ def apply_mappings(workflow: dict, mappings: dict, prompt: str, width: int, heig
     Mappings format: {"param_name": "node_id"}
     The node_id is used directly as a key in the workflow to find the node to replace.
     """
-    workflow = json.loads(json.dumps(workflow))  # Deep copy
+    workflow = copy.deepcopy(workflow)
     
     for param_name, node_id in mappings.items():
         if node_id not in workflow:
@@ -196,6 +198,75 @@ def validate_profile_name(name: str) -> bool:
     return bool(re.match(r'^[a-zA-Z0-9_-]+$', name))
 
 
+# ============== Reusable Helper Functions ==============
+
+def validate_json(value, field_name="field"):
+    """Validate and parse JSON string or return dict as-is. Returns None if value is None."""
+    if value is None:
+        return None
+    try:
+        if isinstance(value, str):
+            return json.loads(value)
+        return value  # Already a dict
+    except (json.JSONDecodeError, TypeError):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name} JSON")
+
+
+def extract_model_names(models):
+    """Extract model names from various API response formats (list of strings or dicts)."""
+    model_list = []
+    for model in models:
+        if isinstance(model, str):
+            model_list.append(model)
+        elif isinstance(model, dict):
+            model_id = model.get("id") or model.get("name") or model.get("model")
+            if model_id:
+                model_list.append(model_id)
+    return model_list
+
+
+def create_zip_for_profile(profile_dir: Path, zip_path: str) -> None:
+    """Create a ZIP file containing all files from a single profile directory."""
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for filepath in profile_dir.iterdir():
+            zipf.write(filepath, filepath.name)
+
+
+def create_zip_for_all_profiles(profiles_dir: Path, zip_path: str) -> None:
+    """Create a ZIP file containing all files from all profile directories."""
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for profile_dir in profiles_dir.iterdir():
+            if profile_dir.is_dir():
+                for filepath in profile_dir.iterdir():
+                    zipf.write(filepath, f"{profile_dir.name}/{filepath.name}")
+
+
+# ============== Decorators ==============
+
+def require_valid_profile_name(func):
+    """Decorator that validates profile_name parameter in kwargs."""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        profile_name = kwargs.get('profile_name')
+        if profile_name and not validate_profile_name(profile_name):
+            raise HTTPException(status_code=400, detail="Invalid profile name")
+        return await func(*args, **kwargs)
+    return wrapper
+
+
+def handle_api_errors(func):
+    """Decorator that catches non-HTTP exceptions and converts them to 500 errors."""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    return wrapper
+
+
 class ProfileManager:
     """Manages profile file operations."""
     
@@ -239,19 +310,13 @@ class ProfileManager:
         """Create a ZIP file for a single profile."""
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
         profile_path = self.profiles_dir / profile_name
-        with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for filepath in profile_path.iterdir():
-                zipf.write(filepath, filepath.name)
+        create_zip_for_profile(profile_path, temp_file.name)
         return temp_file.name
     
     def create_all_zip(self) -> str:
         """Create a ZIP file containing all profiles."""
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
-        with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for profile_dir in self.profiles_dir.iterdir():
-                if profile_dir.is_dir():
-                    for filepath in profile_dir.iterdir():
-                        zipf.write(filepath, f"{profile_dir.name}/{filepath.name}")
+        create_zip_for_all_profiles(self.profiles_dir, temp_file.name)
         return temp_file.name
 
 
@@ -310,8 +375,8 @@ async def llm_analyze_image(image: Image.Image, profile: dict) -> dict:
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": profile["extraction_prompt"]},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}},
+                    {"type": "text", "text": profile["extraction_prompt"]}
                 ]
             }
         ],
@@ -413,11 +478,9 @@ async def list_profiles_api():
 # ============== Profile Editor API Endpoints ==============
 
 @app.get("/api/profile-editor/profile/{profile_name}")
+@require_valid_profile_name
 async def get_profile_api(profile_name: str):
     """Get full profile content (all 3 files)."""
-    if not validate_profile_name(profile_name):
-        raise HTTPException(status_code=400, detail="Invalid profile name")
-    
     files = profile_manager.get_content(profile_name)
     return {
         "name": profile_name,
@@ -435,27 +498,10 @@ async def save_profile_api(request: dict):
         raise HTTPException(status_code=400, detail="Invalid profile name")
     
     extraction_prompt = request.get("extraction_prompt")
-    workflow = request.get("workflow")
-    mappings = request.get("mappings")
     
-    # Validate JSON files if provided
-    if workflow:
-        try:
-            if isinstance(workflow, str):
-                json.loads(workflow)
-            else:
-                json.dumps(workflow)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Invalid workflow JSON")
-    
-    if mappings:
-        try:
-            if isinstance(mappings, str):
-                json.loads(mappings)
-            else:
-                json.dumps(mappings)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Invalid mappings JSON")
+    # Validate and parse JSON files if provided
+    workflow = validate_json(request.get("workflow"), "workflow")
+    mappings = validate_json(request.get("mappings"), "mappings")
     
     files = {
         "extraction_prompt.txt": extraction_prompt,
@@ -490,11 +536,9 @@ async def duplicate_profile_api(request: dict):
 
 
 @app.delete("/api/profile-editor/profile/{profile_name}")
+@require_valid_profile_name
 async def delete_profile_api(profile_name: str):
     """Delete a profile."""
-    if not validate_profile_name(profile_name):
-        raise HTTPException(status_code=400, detail="Invalid profile name")
-    
     if not (PROFILES_DIR / profile_name).exists():
         raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
     
@@ -525,11 +569,9 @@ async def rename_profile_api(request: dict):
 
 
 @app.get("/api/profile-editor/download/{profile_name}")
+@require_valid_profile_name
 async def download_profile_api(profile_name: str):
     """Download a single profile as ZIP."""
-    if not validate_profile_name(profile_name):
-        raise HTTPException(status_code=400, detail="Invalid profile name")
-    
     if not (PROFILES_DIR / profile_name).exists():
         raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
     
@@ -621,17 +663,7 @@ async def get_llm_models():
                 elif "data" in data and isinstance(data["data"], list):
                     models = data["data"]
             
-            # Extract model names/IDs
-            model_list = []
-            for model in models:
-                if isinstance(model, str):
-                    model_list.append(model)
-                elif isinstance(model, dict):
-                    model_id = model.get("id") or model.get("name") or model.get("model")
-                    if model_id:
-                        model_list.append(model_id)
-            
-            return {"models": model_list}
+            return {"models": extract_model_names(models)}
         else:
             # Try alternative endpoint format
             alt_endpoint = llm_endpoint.replace("/api/v1", "").rstrip("/") + "/models"
@@ -640,17 +672,7 @@ async def get_llm_models():
             if alt_response.ok:
                 data = alt_response.json()
                 models = data.get("models") or data.get("data") or []
-                
-                model_list = []
-                for model in models:
-                    if isinstance(model, str):
-                        model_list.append(model)
-                    elif isinstance(model, dict):
-                        model_id = model.get("id") or model.get("name") or model.get("model")
-                        if model_id:
-                            model_list.append(model_id)
-                
-                return {"models": model_list}
+                return {"models": extract_model_names(models)}
             else:
                 raise HTTPException(
                     status_code=502,
@@ -661,6 +683,7 @@ async def get_llm_models():
 
 
 @app.post("/api/analyze")
+@handle_api_errors
 async def analyze_image(
     file: UploadFile = File(...),
     profile: str = Form(...)
@@ -669,30 +692,25 @@ async def analyze_image(
     Analyze uploaded image and return generation prompt.
     Uses the specified profile configuration.
     """
-    try:
-        profile_config = get_profile(profile)
-        image_data = await file.read()
-        image = Image.open(io.BytesIO(image_data)).convert("RGB")
-        
-        result = await llm_analyze_image(image, profile_config)
-        
-        if result.get("status") != "OK":
-            # Return error_reason if provided by LLM, otherwise use prompt field
-            error_reason = result.get("error_reason", result.get("prompt", "Could not analyze image"))
-            raise HTTPException(status_code=400, detail=error_reason)
-        
-        return JSONResponse(content={
-            "success": True,
-            "prompt": result["prompt"]
-        })
+    profile_config = get_profile(profile)
+    image_data = await file.read()
+    image = Image.open(io.BytesIO(image_data)).convert("RGB")
     
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    result = await llm_analyze_image(image, profile_config)
+    
+    if result.get("status") != "OK":
+        # Return error_reason if provided by LLM, otherwise use prompt field
+        error_reason = result.get("error_reason", result.get("prompt", "Could not analyze image"))
+        raise HTTPException(status_code=400, detail=error_reason)
+    
+    return JSONResponse(content={
+        "success": True,
+        "prompt": result["prompt"]
+    })
 
 
 @app.post("/api/generate")
+@handle_api_errors
 async def generate_image(
     prompt: str = Form(...),
     profile: str = Form(...),
@@ -706,26 +724,20 @@ async def generate_image(
     Generate image from prompt using ComfyUI.
     Uses the specified profile configuration and custom resolution.
     """
-    try:
-        profile_config = get_profile(profile)
-        prompt_text = prompt
-        
-        if not prompt_text:
-            raise HTTPException(status_code=400, detail="No prompt provided")
-        
-        image_base64 = await execute_comfyui_workflow(
-            prompt_text, profile_config, width, height, seed, upscale_switch, upscale_resolution
-        )
-        
-        return JSONResponse(content={
-            "success": True,
-            "image": f"data:image/png;base64,{image_base64}"
-        })
+    profile_config = get_profile(profile)
+    prompt_text = prompt
     
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if not prompt_text:
+        raise HTTPException(status_code=400, detail="No prompt provided")
+    
+    image_base64 = await execute_comfyui_workflow(
+        prompt_text, profile_config, width, height, seed, upscale_switch, upscale_resolution
+    )
+    
+    return JSONResponse(content={
+        "success": True,
+        "image": f"data:image/png;base64,{image_base64}"
+    })
 
 
 if __name__ == "__main__":
