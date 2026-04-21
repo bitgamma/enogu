@@ -103,11 +103,10 @@ def get_profile(profile_name: str) -> dict:
     
     # Load extraction prompt from profile directory
     prompt_file_path = PROFILES_DIR / profile_name / "extraction_prompt.txt"
-    if prompt_file_path.exists():
-        with open(prompt_file_path) as f:
-            profile_settings["extraction_prompt"] = f.read().strip()
-    else:
-        raise HTTPException(status_code=404, detail=f"Prompt file extraction_prompt.txt not found")
+    extraction_prompt = read_file_content(prompt_file_path, strip=True)
+    if extraction_prompt is None:
+        raise HTTPException(status_code=404, detail="Prompt file extraction_prompt.txt not found")
+    profile_settings["extraction_prompt"] = extraction_prompt
     
     return profile_settings
 
@@ -115,11 +114,7 @@ def get_profile(profile_name: str) -> dict:
 def load_mappings(profile_name: str) -> dict:
     """Load parameter mappings from mappings.json in the profile directory."""
     mappings_path = PROFILES_DIR / profile_name / "mappings.json"
-    if not mappings_path.exists():
-        return {}
-    
-    with open(mappings_path) as f:
-        return json.load(f)
+    return read_file_content(mappings_path, as_json=True) or {}
 
 
 def apply_mappings(workflow: dict, mappings: dict, prompt: str, width: int, height: int, seed: int, upscale_switch: bool, upscale_resolution: int) -> dict:
@@ -170,25 +165,11 @@ def get_workflow_with_mappings(profile_name: str, prompt: str, width: int, heigh
 def get_workflow(profile_name: str) -> dict:
     """Load a workflow configuration by name without applying mappings."""
     workflow_path = PROFILES_DIR / profile_name / "workflow.json"
-    if not workflow_path.exists():
-        raise HTTPException(status_code=404, detail=f"Workflow for profile '{profile_name}' not found")
-    
-    with open(workflow_path) as f:
-        return json.load(f)
+    ensure_file_exists(workflow_path, f"Workflow for profile '{profile_name}' not found")
+    return read_file_content(workflow_path, as_json=True) or {}
 
 
-def list_profiles() -> list:
-    """List all available profiles."""
-    profiles = []
-    if PROFILES_DIR.exists():
-        for item in PROFILES_DIR.iterdir():
-            if item.is_dir():
-                prompt_file_path = item / "extraction_prompt.txt"
-                if prompt_file_path.exists():
-                    profiles.append({"name": item.name})
-    # Sort profiles alphabetically by name
-    profiles.sort(key=lambda x: x["name"])
-    return profiles
+# list_profiles() removed - API endpoint calls profile_manager.list_profiles() directly
 
 
 # ============== Profile Editor Helper Functions ==============
@@ -198,7 +179,33 @@ def validate_profile_name(name: str) -> bool:
     return bool(re.match(r'^[a-zA-Z0-9_-]+$', name))
 
 
+def validate_profile_name_or_raise(name: str | None, field: str = "profile name") -> None:
+    """Validate profile name and raise HTTPException if invalid."""
+    if not name or not validate_profile_name(name):
+        raise HTTPException(status_code=400, detail=f"Invalid {field}")
+
+
 # ============== Reusable Helper Functions ==============
+
+def read_file_content(path: Path, strip: bool = False, as_json: bool = False):
+    """Read file content with optional processing. Returns None if file doesn't exist."""
+    if not path.exists():
+        return None
+    with open(path) as f:
+        content = f.read()
+    if strip:
+        content = content.strip()
+    if as_json:
+        return json.loads(content)
+    return content
+
+
+def ensure_file_exists(path: Path, context: str) -> Path:
+    """Ensure a file exists, raising HTTPException if not. Returns the path."""
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=context)
+    return path
+
 
 def validate_json(value, field_name="field"):
     """Validate and parse JSON string or return dict as-is. Returns None if value is None."""
@@ -225,20 +232,23 @@ def extract_model_names(models):
     return model_list
 
 
-def create_zip_for_profile(profile_dir: Path, zip_path: str) -> None:
-    """Create a ZIP file containing all files from a single profile directory."""
+def create_zip(profiles_dir: Path, zip_path: str, single_profile: str | None = None) -> None:
+    """Create a ZIP file containing profile files.
+    
+    If single_profile is specified, only that profile's files are included.
+    Otherwise, all profile directories are included.
+    """
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for filepath in profile_dir.iterdir():
-            zipf.write(filepath, filepath.name)
-
-
-def create_zip_for_all_profiles(profiles_dir: Path, zip_path: str) -> None:
-    """Create a ZIP file containing all files from all profile directories."""
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for profile_dir in profiles_dir.iterdir():
-            if profile_dir.is_dir():
-                for filepath in profile_dir.iterdir():
-                    zipf.write(filepath, f"{profile_dir.name}/{filepath.name}")
+        if single_profile:
+            profile_path = profiles_dir / single_profile
+            if profile_path.is_dir():
+                for filepath in profile_path.iterdir():
+                    zipf.write(filepath, filepath.name)
+        else:
+            for profile_dir in profiles_dir.iterdir():
+                if profile_dir.is_dir():
+                    for filepath in profile_dir.iterdir():
+                        zipf.write(filepath, f"{profile_dir.name}/{filepath.name}")
 
 
 # ============== Decorators ==============
@@ -273,6 +283,24 @@ class ProfileManager:
     def __init__(self, profiles_dir: Path):
         self.profiles_dir = profiles_dir
     
+    def ensure_exists(self, profile_name: str) -> None:
+        """Raise HTTPException if profile does not exist."""
+        if not (self.profiles_dir / profile_name).exists():
+            raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
+    
+    def ensure_not_exists(self, profile_name: str) -> None:
+        """Raise HTTPException if profile already exists."""
+        if (self.profiles_dir / profile_name).exists():
+            raise HTTPException(status_code=400, detail=f"Profile '{profile_name}' already exists")
+    
+    def list_profiles(self) -> list[dict]:
+        """List all profiles that have an extraction_prompt.txt file."""
+        profiles = []
+        for item in self.profiles_dir.iterdir():
+            if item.is_dir() and (item / "extraction_prompt.txt").exists():
+                profiles.append({"name": item.name})
+        return sorted(profiles, key=lambda x: x["name"])
+    
     def get_content(self, profile_name: str) -> dict:
         """Read all files from a profile directory."""
         profile_path = self.profiles_dir / profile_name
@@ -306,18 +334,21 @@ class ProfileManager:
         """Duplicate a profile directory with a new name."""
         shutil.copytree(str(self.profiles_dir / source_name), str(self.profiles_dir / new_name))
     
+    def _create_temp_zip(self) -> str:
+        """Create a temporary zip file and return its path."""
+        return tempfile.NamedTemporaryFile(delete=False, suffix='.zip').name
+    
     def create_zip(self, profile_name: str) -> str:
         """Create a ZIP file for a single profile."""
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
-        profile_path = self.profiles_dir / profile_name
-        create_zip_for_profile(profile_path, temp_file.name)
-        return temp_file.name
+        zip_path = self._create_temp_zip()
+        create_zip(self.profiles_dir, zip_path, single_profile=profile_name)
+        return zip_path
     
     def create_all_zip(self) -> str:
         """Create a ZIP file containing all profiles."""
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
-        create_zip_for_all_profiles(self.profiles_dir, temp_file.name)
-        return temp_file.name
+        zip_path = self._create_temp_zip()
+        create_zip(self.profiles_dir, zip_path)
+        return zip_path
 
 
 # Create profile manager instance
@@ -472,7 +503,7 @@ async def execute_comfyui_workflow(prompt: str, profile: dict, width: int, heigh
 @app.get("/api/profiles")
 async def list_profiles_api():
     """List all available profiles."""
-    return {"profiles": list_profiles()}
+    return {"profiles": profile_manager.list_profiles()}
 
 
 # ============== Profile Editor API Endpoints ==============
@@ -494,8 +525,7 @@ async def get_profile_api(profile_name: str):
 async def save_profile_api(request: dict):
     """Save/update a profile (create or overwrite)."""
     profile_name = request.get("name")
-    if not profile_name or not validate_profile_name(profile_name):
-        raise HTTPException(status_code=400, detail="Invalid profile name")
+    validate_profile_name_or_raise(profile_name, "profile name")
     
     extraction_prompt = request.get("extraction_prompt")
     
@@ -519,17 +549,11 @@ async def duplicate_profile_api(request: dict):
     source_name = request.get("source_name")
     new_name = request.get("new_name")
     
-    if not source_name or not validate_profile_name(source_name):
-        raise HTTPException(status_code=400, detail="Invalid source profile name")
+    validate_profile_name_or_raise(source_name, "source profile name")
+    validate_profile_name_or_raise(new_name, "new profile name")
     
-    if not new_name or not validate_profile_name(new_name):
-        raise HTTPException(status_code=400, detail="Invalid new profile name")
-    
-    if not (PROFILES_DIR / source_name).exists():
-        raise HTTPException(status_code=404, detail=f"Source profile '{source_name}' not found")
-    
-    if (PROFILES_DIR / new_name).exists():
-        raise HTTPException(status_code=400, detail=f"Profile '{new_name}' already exists")
+    profile_manager.ensure_exists(source_name)
+    profile_manager.ensure_not_exists(new_name)
     
     profile_manager.duplicate(source_name, new_name)
     return {"status": "success", "message": f"Profile '{source_name}' duplicated as '{new_name}'"}
@@ -539,9 +563,7 @@ async def duplicate_profile_api(request: dict):
 @require_valid_profile_name
 async def delete_profile_api(profile_name: str):
     """Delete a profile."""
-    if not (PROFILES_DIR / profile_name).exists():
-        raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
-    
+    profile_manager.ensure_exists(profile_name)
     profile_manager.delete(profile_name)
     return {"status": "success", "message": f"Profile '{profile_name}' deleted"}
 
@@ -552,17 +574,11 @@ async def rename_profile_api(request: dict):
     old_name = request.get("old_name")
     new_name = request.get("new_name")
     
-    if not old_name or not validate_profile_name(old_name):
-        raise HTTPException(status_code=400, detail="Invalid old profile name")
+    validate_profile_name_or_raise(old_name, "old profile name")
+    validate_profile_name_or_raise(new_name, "new profile name")
     
-    if not new_name or not validate_profile_name(new_name):
-        raise HTTPException(status_code=400, detail="Invalid new profile name")
-    
-    if not (PROFILES_DIR / old_name).exists():
-        raise HTTPException(status_code=404, detail=f"Profile '{old_name}' not found")
-    
-    if (PROFILES_DIR / new_name).exists():
-        raise HTTPException(status_code=400, detail=f"Profile '{new_name}' already exists")
+    profile_manager.ensure_exists(old_name)
+    profile_manager.ensure_not_exists(new_name)
     
     profile_manager.rename(old_name, new_name)
     return {"status": "success", "message": f"Profile '{old_name}' renamed to '{new_name}'"}
@@ -572,9 +588,7 @@ async def rename_profile_api(request: dict):
 @require_valid_profile_name
 async def download_profile_api(profile_name: str):
     """Download a single profile as ZIP."""
-    if not (PROFILES_DIR / profile_name).exists():
-        raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
-    
+    profile_manager.ensure_exists(profile_name)
     zip_path = profile_manager.create_zip(profile_name)
     return FileResponse(
         zip_path,
@@ -600,6 +614,9 @@ async def download_all_profiles_api():
 async def get_config_providers():
     """Get the providers section of the configuration."""
     return {"providers": CONFIG.get("providers", {})}
+
+
+# ============== Image Analysis & Generation API Endpoints ==============
 
 
 @app.post("/api/config/providers")
