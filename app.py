@@ -117,6 +117,16 @@ def load_mappings(profile_name: str) -> dict:
     return read_file_content(mappings_path, as_json=True) or {}
 
 
+# Parameter mapping handlers - maps param names to their input keys and values
+PARAM_HANDLERS = {
+    "prompt": ("text", lambda **kw: kw["prompt"]),
+    "seed": ("seed", lambda **kw: kw["seed"]),
+    "resolution": None,  # Special case: sets both width and height
+    "upscaler_switch": ("switch", lambda **kw: kw["upscale_switch"]),
+    "upscale_resolution": ("value", lambda **kw: kw["upscale_resolution"]),
+}
+
+
 def apply_mappings(workflow: dict, mappings: dict, prompt: str, width: int, height: int, seed: int, upscale_switch: bool, upscale_resolution: int) -> dict:
     """
     Apply parameter mappings to the workflow.
@@ -125,32 +135,25 @@ def apply_mappings(workflow: dict, mappings: dict, prompt: str, width: int, heig
     The node_id is used directly as a key in the workflow to find the node to replace.
     """
     workflow = copy.deepcopy(workflow)
+    kwargs = {"prompt": prompt, "seed": seed, "width": width, "height": height,
+              "upscale_switch": upscale_switch, "upscale_resolution": upscale_resolution}
     
     for param_name, node_id in mappings.items():
-        if node_id not in workflow:
+        if node_id not in workflow or param_name not in PARAM_HANDLERS:
             continue
         
         node = workflow[node_id]
         node_inputs = node.get("inputs", {})
         
-        # Determine what value to set based on parameter name
-        if param_name == "prompt":
-            if "text" in node_inputs:
-                node_inputs["text"] = prompt
-        elif param_name == "seed":
-            if "seed" in node_inputs:
-                node_inputs["seed"] = seed
-        elif param_name == "resolution":
+        if param_name == "resolution":
             if "width" in node_inputs:
                 node_inputs["width"] = width
             if "height" in node_inputs:
                 node_inputs["height"] = height
-        elif param_name == "upscaler_switch":
-            if "switch" in node_inputs:
-                node_inputs["switch"] = upscale_switch
-        elif param_name == "upscale_resolution":
-            if "value" in node_inputs:
-                node_inputs["value"] = upscale_resolution
+        else:
+            input_key, value_fn = PARAM_HANDLERS[param_name]
+            if input_key in node_inputs:
+                node_inputs[input_key] = value_fn(**kwargs)
     
     return workflow
 
@@ -207,6 +210,19 @@ def ensure_file_exists(path: Path, context: str) -> Path:
     return path
 
 
+def build_llm_headers(apikey: str, content_type: str = "application/json") -> dict:
+    """Build HTTP headers for LLM API requests with optional Bearer authentication."""
+    headers = {"Content-Type": content_type}
+    if apikey:
+        headers["Authorization"] = f"Bearer {apikey}"
+    return headers
+
+
+def success_response(**kwargs) -> JSONResponse:
+    """Create a standardized success API response."""
+    return JSONResponse(content={"success": True, **kwargs})
+
+
 def validate_json(value, field_name="field"):
     """Validate and parse JSON string or return dict as-is. Returns None if value is None."""
     if value is None:
@@ -230,25 +246,6 @@ def extract_model_names(models):
             if model_id:
                 model_list.append(model_id)
     return model_list
-
-
-def create_zip(profiles_dir: Path, zip_path: str, single_profile: str | None = None) -> None:
-    """Create a ZIP file containing profile files.
-    
-    If single_profile is specified, only that profile's files are included.
-    Otherwise, all profile directories are included.
-    """
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        if single_profile:
-            profile_path = profiles_dir / single_profile
-            if profile_path.is_dir():
-                for filepath in profile_path.iterdir():
-                    zipf.write(filepath, filepath.name)
-        else:
-            for profile_dir in profiles_dir.iterdir():
-                if profile_dir.is_dir():
-                    for filepath in profile_dir.iterdir():
-                        zipf.write(filepath, f"{profile_dir.name}/{filepath.name}")
 
 
 # ============== Decorators ==============
@@ -338,21 +335,46 @@ class ProfileManager:
         """Create a temporary zip file and return its path."""
         return tempfile.NamedTemporaryFile(delete=False, suffix='.zip').name
     
+    def _write_to_zip(self, zipf: zipfile.ZipFile, single_profile: str | None = None) -> None:
+        """Write profile files to a ZIP archive."""
+        if single_profile:
+            profile_path = self.profiles_dir / single_profile
+            if profile_path.is_dir():
+                for filepath in profile_path.iterdir():
+                    zipf.write(filepath, filepath.name)
+        else:
+            for profile_dir in self.profiles_dir.iterdir():
+                if profile_dir.is_dir():
+                    for filepath in profile_dir.iterdir():
+                        zipf.write(filepath, f"{profile_dir.name}/{filepath.name}")
+    
     def create_zip(self, profile_name: str) -> str:
         """Create a ZIP file for a single profile."""
         zip_path = self._create_temp_zip()
-        create_zip(self.profiles_dir, zip_path, single_profile=profile_name)
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            self._write_to_zip(zipf, single_profile=profile_name)
         return zip_path
     
     def create_all_zip(self) -> str:
         """Create a ZIP file containing all profiles."""
         zip_path = self._create_temp_zip()
-        create_zip(self.profiles_dir, zip_path)
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            self._write_to_zip(zipf)
         return zip_path
 
 
 # Create profile manager instance
 profile_manager = ProfileManager(PROFILES_DIR)
+
+# Profile cache to avoid redundant file I/O
+_profile_cache: dict[str, dict] = {}
+
+
+def get_cached_profile(profile_name: str) -> dict:
+    """Load a profile configuration, using cache to avoid redundant file I/O."""
+    if profile_name not in _profile_cache:
+        _profile_cache[profile_name] = get_profile(profile_name)
+    return _profile_cache[profile_name]
 
 
 def resize_image_for_llm(image: Image.Image, max_pixels: int = 1500000) -> Image.Image:
@@ -416,10 +438,7 @@ async def llm_analyze_image(image: Image.Image, profile: dict) -> dict:
         "model": profile["llm_model"]
     }
     
-    headers = {
-        "Authorization": f"Bearer {profile['llm_apikey']}",
-        "Content-Type": "application/json"
-    }
+    headers = build_llm_headers(profile['llm_apikey'])
     
     response = requests.post(
         f"{profile['llm_endpoint']}/chat/completions",
@@ -448,6 +467,38 @@ async def llm_analyze_image(image: Image.Image, profile: dict) -> dict:
     raise HTTPException(status_code=500, detail="LLM did not return a valid tool call")
 
 
+async def poll_comfyui_history(profile: dict, prompt_id: str, timeout: int = 300) -> dict:
+    """Poll ComfyUI history until workflow completes or fails. Returns the history entry."""
+    for _ in range(timeout * 2):  # Check every 0.5s, max 5 minutes
+        history_response = requests.get(
+            f"{profile['comfyui_endpoint']}/history/{prompt_id}"
+        )
+        
+        if history_response.status_code != 200:
+            raise HTTPException(status_code=500, detail=f"ComfyUI history error: {history_response.text}")
+        
+        history = history_response.json()
+        
+        if prompt_id in history:
+            return history[prompt_id]
+        
+        await asyncio.sleep(0.5)
+    
+    raise HTTPException(status_code=500, detail="ComfyUI workflow timed out")
+
+
+def extract_comfyui_image(profile: dict, outputs: dict) -> str:
+    """Extract and encode the first image from ComfyUI workflow outputs."""
+    for node_id, node_data in outputs.items():
+        if "images" in node_data:
+            image_data = node_data["images"][0]
+            image_bytes = requests.get(
+                f"{profile['comfyui_endpoint']}/view?filename={image_data['filename']}&type={image_data['type']}&subfolder={image_data.get('subfolder', '')}"
+            ).content
+            return base64.b64encode(image_bytes).decode("utf-8")
+    raise HTTPException(status_code=500, detail="No image output from ComfyUI")
+
+
 async def execute_comfyui_workflow(prompt: str, profile: dict, width: int, height: int, seed: int, upscale_switch: bool, upscale_resolution: int) -> str:
     """
     Execute ComfyUI workflow with the given prompt and custom resolution.
@@ -467,37 +518,12 @@ async def execute_comfyui_workflow(prompt: str, profile: dict, width: int, heigh
     prompt_id = queue_response.json()["prompt_id"]
     
     # Wait for completion
-    while True:
-        history_response = requests.get(
-            f"{profile['comfyui_endpoint']}/history/{prompt_id}"
-        )
-        
-        if history_response.status_code != 200:
-            raise HTTPException(status_code=500, detail=f"ComfyUI history error: {history_response.text}")
-        
-        history = history_response.json()
-        
-        if prompt_id in history and history[prompt_id]:
-            # Workflow completed
-            outputs = history[prompt_id]["outputs"]
-            
-            # Find the PreviewImage node output
-            for node_id, node_data in outputs.items():
-                if "images" in node_data:
-                    image_data = node_data["images"][0]
-                    image_bytes = requests.get(
-                        f"{profile['comfyui_endpoint']}/view?filename={image_data['filename']}&type={image_data['type']}&subfolder={image_data.get('subfolder', '')}"
-                    ).content
-                    return base64.b64encode(image_bytes).decode("utf-8")
-            
-            raise HTTPException(status_code=500, detail="No image output from ComfyUI")
-        
-        # Check if workflow failed
-        if prompt_id in history and "errors" in history[prompt_id]:
-            raise HTTPException(status_code=500, detail=f"ComfyUI workflow failed: {history[prompt_id]['errors']}")
-        
-        # Wait before polling again
-        await asyncio.sleep(0.5)
+    history_entry = await poll_comfyui_history(profile, prompt_id)
+    
+    if "errors" in history_entry:
+        raise HTTPException(status_code=500, detail=f"ComfyUI workflow failed: {history_entry['errors']}")
+    
+    return extract_comfyui_image(profile, history_entry["outputs"])
 
 
 @app.get("/api/profiles")
@@ -653,10 +679,7 @@ async def get_llm_models():
     if not llm_endpoint:
         raise HTTPException(status_code=400, detail="LLM endpoint not configured")
     
-    # Build headers with optional Bearer authentication
-    headers = {}
-    if llm_apikey:
-        headers["Authorization"] = f"Bearer {llm_apikey}"
+    headers = build_llm_headers(llm_apikey)
     
     try:
         # Try common endpoints for listing models
@@ -709,7 +732,7 @@ async def analyze_image(
     Analyze uploaded image and return generation prompt.
     Uses the specified profile configuration.
     """
-    profile_config = get_profile(profile)
+    profile_config = get_cached_profile(profile)
     image_data = await file.read()
     image = Image.open(io.BytesIO(image_data)).convert("RGB")
     
@@ -720,10 +743,7 @@ async def analyze_image(
         error_reason = result.get("error_reason", result.get("prompt", "Could not analyze image"))
         raise HTTPException(status_code=400, detail=error_reason)
     
-    return JSONResponse(content={
-        "success": True,
-        "prompt": result["prompt"]
-    })
+    return success_response(prompt=result["prompt"])
 
 
 @app.post("/api/generate")
@@ -741,7 +761,7 @@ async def generate_image(
     Generate image from prompt using ComfyUI.
     Uses the specified profile configuration and custom resolution.
     """
-    profile_config = get_profile(profile)
+    profile_config = get_cached_profile(profile)
     prompt_text = prompt
     
     if not prompt_text:
@@ -751,10 +771,7 @@ async def generate_image(
         prompt_text, profile_config, width, height, seed, upscale_switch, upscale_resolution
     )
     
-    return JSONResponse(content={
-        "success": True,
-        "image": f"data:image/png;base64,{image_base64}"
-    })
+    return success_response(image=f"data:image/png;base64,{image_base64}")
 
 
 if __name__ == "__main__":

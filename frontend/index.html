@@ -12,9 +12,9 @@
         
         <!-- Navigation -->
         <nav class="main-nav">
-            <button class="nav-btn active" id="navGenerate" onclick="showGenerateView()">Generate</button>
-            <button class="nav-btn" id="navEditor" onclick="showProfileEditor()">Profile Editor</button>
-            <button class="nav-btn" id="navConfig" onclick="showConfigEditor()">Settings</button>
+            <button class="nav-btn active" id="navGenerate">Generate</button>
+            <button class="nav-btn" id="navEditor">Profile Editor</button>
+            <button class="nav-btn" id="navConfig">Settings</button>
         </nav>
         
         <!-- Progress Bar -->
@@ -165,7 +165,7 @@
             <div class="editor-sidebar">
                 <div class="editor-sidebar-header">
                     <h3>Profiles</h3>
-                    <button class="btn small" id="downloadAllBtn" onclick="downloadAllProfiles()">Download All</button>
+                    <button class="btn" id="downloadAllBtn">Download All</button>
                 </div>
                 <div class="profile-list" id="profileList">
                     <!-- Profile items will be loaded here -->
@@ -175,10 +175,10 @@
                 <div class="editor-header">
                     <h2 id="editorProfileName">Select a profile</h2>
                     <div class="editor-actions">
-                        <button class="btn primary" id="saveProfileBtn" onclick="saveCurrentProfile()" disabled>Save</button>
-                        <button class="btn" id="duplicateProfileBtn" onclick="duplicateCurrentProfile()" disabled>Duplicate</button>
-                        <button class="btn" id="renameProfileBtn" onclick="renameCurrentProfile()" disabled>Rename</button>
-                        <button class="btn" id="deleteProfileBtn" onclick="deleteCurrentProfile()" disabled>Delete</button>
+                        <button class="btn primary" id="saveProfileBtn" disabled>Save</button>
+                        <button class="btn" id="duplicateProfileBtn" disabled>Duplicate</button>
+                        <button class="btn" id="renameProfileBtn" disabled>Rename</button>
+                        <button class="btn" id="deleteProfileBtn" disabled>Delete</button>
                     </div>
                 </div>
                 <div class="editor-tabs" id="editorTabs" style="display: none;">
@@ -221,11 +221,11 @@
                                 <select id="llmModel" class="select">
                                     <option value="">Loading models...</option>
                                 </select>
-                                <button class="btn primary" id="refreshModelsBtn" onclick="refreshLLMModels()">Refresh Models</button>
+                                <button class="btn primary" id="refreshModelsBtn">Refresh Models</button>
                             </div>
                         </div>
                         <div class="config-actions">
-                            <button class="btn primary" id="saveConfigBtn" onclick="saveConfig()">Save Configuration</button>
+                            <button class="btn primary" id="saveConfigBtn">Save Configuration</button>
                         </div>
                     </div>
                 </div>

@@ -66,6 +66,17 @@ let selectedFile = null;
 let availableProfiles = [];
 let currentResolution = { width: 768, height: 1024 };
 let currentSeed = null;
+
+// Resolution configuration - maps value strings to width/height pairs
+const RESOLUTIONS = {
+    '1024x1024': { width: 1024, height: 1024 },
+    '768x1024': { width: 768, height: 1024 },
+    '1024x768': { width: 1024, height: 768 },
+    '720x1280': { width: 720, height: 1280 },
+    '1280x720': { width: 1280, height: 720 },
+    '688x1536': { width: 688, height: 1536 },
+    '1536x688': { width: 1536, height: 688 },
+};
 let isProcessing = false;
 let imageHistory = [];
 const MAX_HISTORY = 10;
@@ -77,21 +88,21 @@ let editorOriginalNames = new Set();
 let currentConfig = null;
 let availableLLMModels = [];
 
-// Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
     await loadProfiles();
     populateAllProfileUIs();
     setupMobileCameraButton();
     
-    // Setup config editor event listeners
-    if (DOM.refreshModelsBtn) {
-        DOM.refreshModelsBtn.addEventListener('click', refreshLLMModels);
-    }
-    if (DOM.saveConfigBtn) {
-        DOM.saveConfigBtn.addEventListener('click', saveConfig);
-    }
+    DOM.profileSelect.addEventListener('change', handleProfileChange);
+    DOM.profileSelectResult.addEventListener('change', handleProfileChange);
     
-    // Setup tab button listeners
+    DOM.navGenerate?.addEventListener('click', showGenerateView);
+    DOM.navEditor?.addEventListener('click', showProfileEditor);
+    DOM.navConfig?.addEventListener('click', showConfigEditor);
+    DOM.refreshModelsBtn?.addEventListener('click', refreshLLMModels);
+    DOM.saveConfigBtn?.addEventListener('click', saveConfig);    
+    DOM.downloadAllBtn?.addEventListener('click', downloadAllProfiles);
+    
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             switchEditorTab(btn.dataset.tab);
@@ -117,7 +128,6 @@ async function loadProfiles() {
     }
 }
 
-// Populate all profile UIs from already-loaded data
 function populateAllProfileUIs() {
     populateProfileSelects();
     populateEditorProfileList();
@@ -163,9 +173,6 @@ function populateModelSelect() {
 function handleProfileChange(e) {
     currentProfile = e.target.value;
 }
-
-DOM.profileSelect.addEventListener('change', handleProfileChange);
-DOM.profileSelectResult.addEventListener('change', handleProfileChange);
 
 // Upload section click
 DOM.uploadSection.addEventListener('click', () => DOM.fileInput.click());
@@ -403,6 +410,23 @@ async function analyzeImage() {
 }
 
 /**
+ * Generic API call helper with standardized error handling.
+ * @param {string} endpoint - API endpoint URL
+ * @param {FormData|Object} body - Request body
+ * @param {Object} options - Additional fetch options
+ * @param {string} errorPrefix - Prefix for error messages
+ * @returns {Promise<Object>} Parsed JSON response
+ */
+async function apiCall(endpoint, body, options = {}, errorPrefix = 'Request') {
+    const response = await fetch(endpoint, { method: 'POST', body, ...options });
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.error_reason || data.detail || `${errorPrefix} failed`);
+    }
+    return data;
+}
+
+/**
  * Analyze an image via the /api/analyze endpoint.
  * @param {File} file - The image file to analyze
  * @param {string} profile - The profile name
@@ -412,20 +436,7 @@ async function analyzeImageAPI(file, profile) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('profile', profile);
-    
-    const response = await fetch('/api/analyze', {
-        method: 'POST',
-        body: formData
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-        const errorMessage = data.error_reason || data.detail || 'Analysis failed';
-        throw new Error(errorMessage);
-    }
-    
-    return data;
+    return apiCall('/api/analyze', formData, {}, 'Analysis');
 }
 
 function generateRandomSeed() {
@@ -455,30 +466,16 @@ async function generateImage(upscale = false) {
         formData.append('upscale_resolution', upscaleResolution);
     }
     
-    try {
-        const response = await fetch('/api/generate', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-            throw new Error(data.detail || 'Generation failed');
-        }
-        
-        const resultImage = DOM.resultImage;
-        resultImage.src = data.image;
-        resultImage.onload = () => {
-            resultImage.style.display = 'block';
-            DOM.regenerateBtn.disabled = false;
-            DOM.progressFill.style.width = '100%';
-            addToHistory(data.image, DOM.promptText.value);
-        };
-        
-    } catch (err) {
-        throw err;
-    }
+    const data = await apiCall('/api/generate', formData, {}, 'Generation');
+    
+    const resultImage = DOM.resultImage;
+    resultImage.src = data.image;
+    resultImage.onload = () => {
+        resultImage.style.display = 'block';
+        DOM.regenerateBtn.disabled = false;
+        DOM.progressFill.style.width = '100%';
+        addToHistory(data.image, DOM.promptText.value);
+    };
 }
 
 /**
@@ -510,39 +507,17 @@ function createAsyncHandler(btn, loadingText, completeText, progressWidth, opera
     };
 }
 
-// Re-analyze button handler
-DOM.reanalyzeBtn.addEventListener('click', createAsyncHandler(
-    DOM.reanalyzeBtn,
-    'Re-analyzing image with LLM...',
-    'Analysis complete',
-    '100%',
-    async () => {
-        DOM.stepIndicator2.classList.add('active');
-        const data = await analyzeImageAPI(selectedFile, currentProfile);
-        DOM.promptText.value = data.prompt;
-    },
-    'Re-analysis'
-));
+// Action button configurations - consolidated to reduce duplication
+const ACTION_BUTTONS = [
+    { btn: DOM.reanalyzeBtn, loading: 'Re-analyzing image with LLM...', complete: 'Analysis complete', progress: '100%', operation: async () => { DOM.stepIndicator2.classList.add('active'); const data = await analyzeImageAPI(selectedFile, currentProfile); DOM.promptText.value = data.prompt; }, error: 'Re-analysis' },
+    { btn: DOM.regenerateBtn, loading: 'Generating image...', complete: 'Generation complete', progress: '75%', operation: () => generateImage(false), error: 'Regeneration' },
+    { btn: DOM.upscaleBtn, loading: 'Upscaling image...', complete: 'Upscaling complete', progress: '75%', operation: () => generateImage(true), error: 'Upscaling' },
+];
 
-// Regenerate button handler
-DOM.regenerateBtn.addEventListener('click', createAsyncHandler(
-    DOM.regenerateBtn,
-    'Generating image...',
-    'Generation complete',
-    '75%',
-    () => generateImage(false),
-    'Regeneration'
-));
-
-// Upscale button handler
-DOM.upscaleBtn.addEventListener('click', createAsyncHandler(
-    DOM.upscaleBtn,
-    'Upscaling image...',
-    'Upscaling complete',
-    '75%',
-    () => generateImage(true),
-    'Upscaling'
-));
+// Register action button event listeners
+ACTION_BUTTONS.forEach(({ btn, loading, complete, progress, operation, error }) => {
+    btn.addEventListener('click', createAsyncHandler(btn, loading, complete, progress, operation, error));
+});
 
 // Upscale resolution selector change handler
 DOM.upscaleResolutionSelect.addEventListener('change', (e) => {
@@ -557,8 +532,7 @@ DOM.newBtn.addEventListener('click', () => {
 
 // Resolution selector change handler
 DOM.resolutionSelect.addEventListener('change', (e) => {
-    const [width, height] = e.target.value.split('x').map(Number);
-    currentResolution = { width, height };
+    currentResolution = RESOLUTIONS[e.target.value] || { width: 768, height: 1024 };
 });
 
 // Download button handler
@@ -582,17 +556,14 @@ DOM.downloadBtn.addEventListener('click', () => {
  * @param {'error'|'success'} type - Notification type
  * @param {number} duration - Auto-dismiss duration in milliseconds (0 to disable)
  */
-function showNotification(message, type = 'error', duration = 3000) {
-    const container = DOM.errorContainer;
-    const messageEl = DOM.errorMessage;
-    
+function notify(message, type = 'error', duration = 3000) {
     if (window.notificationTimeout) {
         clearTimeout(window.notificationTimeout);
     }
     
-    messageEl.textContent = message;
-    container.classList.add('show');
-    container.classList.toggle('notification', type === 'success');
+    DOM.errorMessage.textContent = message;
+    DOM.errorContainer.classList.add('show');
+    DOM.errorContainer.classList.toggle('notification', type === 'success');
     
     if (duration > 0) {
         window.notificationTimeout = setTimeout(hideNotification, duration);
@@ -611,42 +582,21 @@ function hideNotification() {
     DOM.errorContainer.classList.remove('show', 'notification');
 }
 
-/**
- * Shows error notification.
- * @param {string} message - The error message
- * @param {number} duration - Auto-dismiss duration in milliseconds
- */
-function showError(message, duration = 3000) {
-    showNotification(message, 'error', duration);
-}
+// Convenience wrappers
+const showError = (msg, dur = 3000) => notify(msg, 'error', dur);
+const showSuccess = (msg, dur = 3000) => notify(msg, 'success', dur);
 
-/**
- * Shows success notification.
- * @param {string} message - The success message
- * @param {number} duration - Auto-dismiss duration in milliseconds
- */
-function showSuccess(message, duration = 3000) {
-    showNotification(message, 'success', duration);
-}
+// Error actions visibility
+const showErrorActions = () => { DOM.errorActions.style.display = 'flex'; };
+const hideErrorActions = () => { DOM.errorActions.style.display = 'none'; };
 
-// Close notification on X button click
+// Close notification handlers
 DOM.errorClose.addEventListener('click', hideNotification);
-
-// Close notification on click outside
 document.addEventListener('click', (e) => {
     if (e.target === DOM.errorContainer) {
         hideNotification();
     }
 });
-
-// Error actions (Try Again / Cancel buttons) - only shown for errors, not success
-function showErrorActions() {
-    DOM.errorActions.style.display = 'flex';
-}
-
-function hideErrorActions() {
-    DOM.errorActions.style.display = 'none';
-}
 
 // Try again button handler
 DOM.tryAgainBtn.addEventListener('click', () => {
@@ -947,116 +897,122 @@ function switchEditorTab(tabName) {
 
 // Setup tab button listeners (merged into main DOMContentLoaded)
 
-// Save current profile
-async function saveCurrentProfile() {
-    if (!editorCurrentProfile) return;
-    const payload = {
-        name: editorCurrentProfile,
-        extraction_prompt: DOM.extractionPromptEditor.value,
-        workflow: DOM.workflowEditor.value,
-        mappings: DOM.mappingsEditor.value
-    };
-    
-    const response = await fetch('/api/profile-editor/profile', {
+// Profile operation configurations
+const PROFILE_OPERATIONS = {
+    save: {
+        endpoint: '/api/profile-editor/profile',
         method: 'POST',
+        successMsg: 'Profile saved successfully',
+        buildPayload: (name) => ({
+            name,
+            extraction_prompt: DOM.extractionPromptEditor.value,
+            workflow: DOM.workflowEditor.value,
+            mappings: DOM.mappingsEditor.value
+        }),
+        onsuccess: () => !editorOriginalNames.has(editorCurrentProfile) ? refreshProfilesAndUI() : null
+    },
+    duplicate: {
+        endpoint: '/api/profile-editor/profile/duplicate',
+        method: 'POST',
+        successMsg: 'Profile duplicated successfully',
+        prompt: (name) => `Enter new name for duplicate of "${name}":`,
+        buildPayload: (name, newName) => ({ source_name: name, new_name: newName }),
+        onsuccess: (newName) => refreshProfilesAndUI(() => selectProfileForEdit(newName))
+    },
+    rename: {
+        endpoint: '/api/profile-editor/profile/rename',
+        method: 'POST',
+        successMsg: 'Profile renamed successfully',
+        prompt: (name) => `Enter new name for "${name}":`,
+        validate: (newName) => {
+            if (editorOriginalNames.has(newName)) {
+                showError('A profile with this name already exists');
+                return false;
+            }
+            return true;
+        },
+        buildPayload: (name, newName) => ({ old_name: name, new_name: newName }),
+        onsuccess: (newName) => {
+            editorCurrentProfile = newName;
+            refreshProfilesAndUI(() => { DOM.editorProfileName.textContent = newName; });
+        }
+    },
+    delete: {
+        endpoint: (name) => `/api/profile-editor/profile/${encodeURIComponent(name)}`,
+        method: 'DELETE',
+        successMsg: 'Profile deleted successfully',
+        confirm: (name) => `Are you sure you want to delete profile "${name}"? This action cannot be undone.`,
+        buildPayload: (name) => ({ name }),
+        onsuccess: () => {
+            editorCurrentProfile = null;
+            editorProfileData = { extraction_prompt: '', workflow: '', mappings: '' };
+            DOM.editorProfileName.textContent = 'Select a profile';
+            DOM.saveProfileBtn.disabled = true;
+            DOM.duplicateProfileBtn.disabled = true;
+            DOM.renameProfileBtn.disabled = true;
+            DOM.deleteProfileBtn.disabled = true;
+            DOM.editorTabs.style.display = 'none';
+            DOM.editorContent.style.display = 'none';
+            DOM.editorPlaceholder.style.display = 'block';
+            DOM.extractionPromptEditor.value = '';
+            DOM.workflowEditor.value = '';
+            DOM.mappingsEditor.value = '';
+            document.querySelectorAll('.profile-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            refreshProfilesAndUI();
+        }
+    }
+};
+
+// Generic profile operation handler
+async function executeProfileOperation(operationKey) {
+    if (!editorCurrentProfile) return;
+    
+    const op = PROFILE_OPERATIONS[operationKey];
+    
+    // Handle confirmation dialog (for destructive operations like delete)
+    if (op.confirm && !confirm(op.confirm(editorCurrentProfile))) {
+        return;
+    }
+    
+    // Handle name prompt (for operations that require a new name)
+    const newName = op.prompt ? promptForName(editorCurrentProfile, op.prompt(editorCurrentProfile)) : null;
+    if (newName === null && op.prompt) return;
+    if (op.validate && newName && !op.validate(newName)) return;
+    
+    const payload = op.buildPayload(editorCurrentProfile, newName);
+    const endpoint = typeof op.endpoint === 'function' ? op.endpoint(editorCurrentProfile) : op.endpoint;
+    const response = await fetch(endpoint, {
+        method: op.method,
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload)
     });
     
-    const success = await handleApiResponse(response, 'Profile saved successfully', 'Save profile');
-    
-    if (success && !editorOriginalNames.has(editorCurrentProfile)) {
-        await refreshProfilesAndUI();
+    const success = await handleApiResponse(response, op.successMsg, op.successMsg);
+    if (success && op.onsuccess) {
+        await op.onsuccess(newName);
     }
+}
+
+// Save current profile
+async function saveCurrentProfile() {
+    await executeProfileOperation('save');
 }
 
 // Duplicate current profile
 async function duplicateCurrentProfile() {
-    if (!editorCurrentProfile) return;
-    
-    const newName = promptForName(editorCurrentProfile, `Enter new name for duplicate of "${editorCurrentProfile}":`);
-    if (!newName) return;
-    
-    const response = await fetch('/api/profile-editor/profile/duplicate', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            source_name: editorCurrentProfile,
-            new_name: newName
-        })
-    });
-    
-    const success = await handleApiResponse(response, 'Profile duplicated successfully', 'Duplicate profile');
-    
-    if (success) {
-        await refreshProfilesAndUI(() => selectProfileForEdit(newName));
-    }
+    await executeProfileOperation('duplicate');
 }
 
 // Rename current profile
 async function renameCurrentProfile() {
-    if (!editorCurrentProfile) return;
-    
-    const newName = promptForName(editorCurrentProfile, `Enter new name for "${editorCurrentProfile}":`);
-    if (!newName) return;
-    
-    // Check if name already exists
-    if (editorOriginalNames.has(newName)) {
-        showError('A profile with this name already exists');
-        return;
-    }
-    
-    const response = await fetch('/api/profile-editor/profile/rename', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            old_name: editorCurrentProfile,
-            new_name: newName
-        })
-    });
-    
-    const success = await handleApiResponse(response, 'Profile renamed successfully', 'Rename profile');
-    
-    if (success) {
-        editorCurrentProfile = newName;
-        await refreshProfilesAndUI(() => {
-            DOM.editorProfileName.textContent = newName;
-        });
-    }
+    await executeProfileOperation('rename');
 }
 
 // Delete current profile
 async function deleteCurrentProfile() {
-    if (!editorCurrentProfile) return;
-    if (!confirm(`Are you sure you want to delete profile "${editorCurrentProfile}"? This action cannot be undone.`)) {
-        return;
-    }
-    
-    const response = await fetch(`/api/profile-editor/profile/${encodeURIComponent(editorCurrentProfile)}`, {
-        method: 'DELETE'
-    });
-    
-    const success = await handleApiResponse(response, 'Profile deleted successfully', 'Delete profile');
-    
-    if (success) {
-        editorCurrentProfile = null;
-        editorProfileData = { extraction_prompt: '', workflow: '', mappings: '' };
-        DOM.editorProfileName.textContent = 'Select a profile';
-        DOM.saveProfileBtn.disabled = true;
-        DOM.duplicateProfileBtn.disabled = true;
-        DOM.renameProfileBtn.disabled = true;
-        DOM.deleteProfileBtn.disabled = true;
-        DOM.editorTabs.style.display = 'none';
-        DOM.editorContent.style.display = 'none';
-        DOM.editorPlaceholder.style.display = 'block';
-        DOM.extractionPromptEditor.value = '';
-        DOM.workflowEditor.value = '';
-        DOM.mappingsEditor.value = '';
-        document.querySelectorAll('.profile-item').forEach(item => {
-            item.classList.remove('selected');
-        });
-        await refreshProfilesAndUI();
-    }
+    await executeProfileOperation('delete');
 }
 
 // Download all profiles

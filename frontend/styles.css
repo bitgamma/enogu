@@ -287,11 +287,6 @@ label {
     border-color: var(--color-primary-hover);
 }
 
-.btn.small {
-    padding: 6px 12px;
-    font-size: 12px;
-}
-
 /* Screen 3: Result */
 .result-section {
     display: flex;
@@ -697,12 +692,6 @@ label {
     margin: 0;
 }
 
-.btn.small.active {
-    background: #1a1a1a;
-    color: white;
-    border-color: #1a1a1a;
-}
-
 /* Profile List */
 .profile-list {
     flex: 1;
@@ -842,13 +831,6 @@ label {
     min-height: calc(100vh - 150px);
     background: var(--color-background);
     overflow: hidden;
-}
-
-.profile-editor-container {
-    height: calc(100vh - 200px);
-    min-height: 500px;
-    border-radius: 0;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .config-editor-container {
