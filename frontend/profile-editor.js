@@ -1,48 +1,8 @@
 // Profile editor logic
 
 import { DOM, PROFILE_OPERATIONS, state } from './state.js';
-import { loadProfileContent, handleApiResponse, downloadProfile, downloadAllProfiles } from './api.js';
-import { showPrompt, showConfirm, showSuccess, showError } from './ui.js';
-
-// View switching (forwarded to main.js coordination)
-export function showGenerateView() {
-    window.switchViewMain('generate', null, true);
-}
-
-export function showProfileEditor() {
-    window.switchViewMain('generate', 'editor', true);
-}
-
-export function showConfigEditor() {
-    window.switchViewMain(['generate', 'editor'], 'config', false);
-    window.loadConfigView();
-}
-
-/**
- * Switch between main views.
- * @param {string|string[]} hideViews - View(s) to hide
- * @param {string|null} showView - View to show
- * @param {boolean} refreshProfiles - Whether to refresh profiles
- */
-export function switchView(hideViews, showView, refreshProfiles) {
-    const hideList = Array.isArray(hideViews) ? hideViews : [hideViews];
-    
-    const isActiveGenerate = !hideList.includes('generate') && showView === 'generate';
-    const isActiveEditor = !hideList.includes('editor') && showView === 'editor';
-    const isActiveConfig = !hideList.includes('config') && showView === 'config';
-    
-    DOM.navGenerate?.classList.toggle('active', isActiveGenerate);
-    DOM.navEditor?.classList.toggle('active', isActiveEditor);
-    DOM.navConfig?.classList.toggle('active', isActiveConfig);
-    
-    DOM.screen1.parentElement.style.display = showView === null ? 'block' : 'none';
-    DOM.profileEditorContainer.style.display = showView === 'editor' ? 'flex' : 'none';
-    DOM.configEditorContainer.style.display = showView === 'config' ? 'block' : 'none';
-    
-    if (refreshProfiles) {
-        window.refreshProfilesAndUI();
-    }
-}
+import { loadProfileContent, handleApiResponse, downloadProfile } from './api.js';
+import { showPrompt, showConfirm, showError } from './ui.js';
 
 /**
  * Populate editor profile list from already-loaded data.
@@ -75,26 +35,41 @@ export function populateEditorProfileList() {
 }
 
 /**
- * Select a profile for editing.
- * @param {string} profileName - Profile name to select
+ * Sync editor sidebar selection to match state.currentProfile.
+ * Only updates UI, does not load content.
  */
-export async function selectProfileForEdit(profileName) {
+export function syncEditorSidebar() {
+    const profileName = state.currentProfile;
     document.querySelectorAll('.profile-item').forEach(item => {
-        item.classList.remove('selected');
-        if (item.dataset.name === profileName) {
-            item.classList.add('selected');
-        }
+        item.classList.toggle('selected', item.dataset.name === profileName);
     });
     
-    state.editorCurrentProfile = profileName;
-    DOM.editorProfileName.textContent = profileName;
-    DOM.saveProfileBtn.disabled = false;
-    DOM.duplicateProfileBtn.disabled = false;
-    DOM.renameProfileBtn.disabled = false;
-    DOM.deleteProfileBtn.disabled = false;
-    DOM.editorTabs.style.display = 'flex';
-    DOM.editorContent.style.display = 'block';
-    DOM.editorPlaceholder.style.display = 'none';
+    if (profileName) {
+        DOM.editorProfileName.textContent = profileName;
+        DOM.saveProfileBtn.disabled = false;
+        DOM.duplicateProfileBtn.disabled = false;
+        DOM.renameProfileBtn.disabled = false;
+        DOM.deleteProfileBtn.disabled = false;
+        DOM.editorTabs.style.display = 'flex';
+        DOM.editorContent.style.display = 'block';
+        DOM.editorPlaceholder.style.display = 'none';
+    } else {
+        DOM.editorProfileName.textContent = 'Select a profile';
+        DOM.saveProfileBtn.disabled = true;
+        DOM.duplicateProfileBtn.disabled = true;
+        DOM.renameProfileBtn.disabled = true;
+        DOM.deleteProfileBtn.disabled = true;
+        DOM.editorTabs.style.display = 'none';
+        DOM.editorContent.style.display = 'none';
+        DOM.editorPlaceholder.style.display = 'block';
+    }
+}
+
+/**
+ * Load profile content into the editor.
+ */
+export async function loadProfileContentIntoEditor(profileName) {
+    if (!profileName) return;
     
     try {
         const data = await loadProfileContent(profileName);
@@ -111,6 +86,18 @@ export async function selectProfileForEdit(profileName) {
         console.error('Failed to load profile content:', err);
         showError('Failed to load profile content');
     }
+}
+
+/**
+ * Select a profile for editing.
+ * @param {string} profileName - Profile name to select
+ */
+export async function selectProfileForEdit(profileName) {
+    state.currentProfile = profileName;
+    DOM.profileSelect.value = profileName;
+    
+    syncEditorSidebar();
+    await loadProfileContentIntoEditor(profileName);
 }
 
 /**
@@ -143,35 +130,28 @@ export function switchEditorTab(tabName) {
  * @param {string} operationKey - Operation key (save, duplicate, rename, delete)
  */
 export async function executeProfileOperation(operationKey) {
-    if (!state.editorCurrentProfile) return;
+   if (!state.currentProfile) return;
     
     const op = PROFILE_OPERATIONS[operationKey];
     
     // Handle confirmation dialog
-    if (op.confirm && !(await showConfirm(op.confirm(state.editorCurrentProfile)))) {
+    if (op.confirm && !(await showConfirm(op.confirm(state.currentProfile)))) {
         return;
     }
     
     // Handle name prompt
     let newName = null;
     if (op.prompt) {
-        newName = await showPrompt(op.prompt(state.editorCurrentProfile));
+        newName = await showPrompt(op.prompt(state.currentProfile));
         if (newName === null) return;
-        if (newName === state.editorCurrentProfile) {
-            showError('New name must be different from current profile');
+        if (newName === state.currentProfile) {
+            showError('A profile with this name already exists');
             return;
         }
     }
     
-    if (op.validate && newName && !op.validate(newName)) {
-        if (operationKey === 'rename') {
-            showError('A profile with this name already exists');
-        }
-        return;
-    }
-    
-    const payload = op.buildPayload(state.editorCurrentProfile, newName);
-    const endpoint = typeof op.endpoint === 'function' ? op.endpoint(state.editorCurrentProfile) : op.endpoint;
+    const payload = op.buildPayload(state.currentProfile, newName);
+    const endpoint = typeof op.endpoint === 'function' ? op.endpoint(state.currentProfile) : op.endpoint;
     
     let response;
     switch (op.method) {

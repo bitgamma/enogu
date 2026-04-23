@@ -1,6 +1,5 @@
 // API call functions
 
-import { DOM, state } from './state.js';
 import { showSuccess, showError } from './ui.js';
 
 /**
@@ -72,10 +71,7 @@ export async function generateImageAPI(prompt, profile, width, height, seed, ups
 export async function loadProfiles() {
     const response = await fetch('/api/profiles');
     const data = await response.json();
-    if (data.profiles && data.profiles.length > 0) {
-        return data.profiles;
-    }
-    return [];
+    return data?.profiles || [];
 }
 
 /**
@@ -190,14 +186,6 @@ export function downloadProfile(profileName) {
  */
 export function downloadAllProfiles() {
     window.location.href = '/api/profile-editor/download-all';
-}
-
-/**
- * Generate a random seed value.
- * @returns {number} Random seed
- */
-export function generateRandomSeed() {
-    return Math.floor(Math.random() * 4294967295);
 }
 
 /**

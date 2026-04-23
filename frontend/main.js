@@ -1,24 +1,57 @@
 // Main entry point - initialization and event binding
 
-import { DOM, ACTION_BUTTONS, RESOLUTIONS, state } from './state.js';
-import { analyzeImageAPI, generateImageAPI, loadProfiles as fetchProfiles, generateRandomSeed } from './api.js';
-import { showScreen, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, populateSelect, setupMobileCameraButton, resetState, createAsyncHandler } from './ui.js';
+import { DOM, ACTION_BUTTONS, RESOLUTIONS, state, generateRandomSeed } from './state.js';
+import { analyzeImageAPI, generateImageAPI, loadProfiles as fetchProfiles, downloadAllProfiles } from './api.js';
+import { showScreen, switchView, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, populateSelect, setupMobileCameraButton, resetState, createAsyncHandler } from './ui.js';
 import { addToHistory } from './history.js';
-import { switchView, populateEditorProfileList, switchEditorTab, saveCurrentProfile, duplicateCurrentProfile, renameCurrentProfile, deleteCurrentProfile, showGenerateView, showProfileEditor, showConfigEditor } from './profile-editor.js';
+import { populateEditorProfileList, switchEditorTab, saveCurrentProfile, duplicateCurrentProfile, renameCurrentProfile, deleteCurrentProfile, syncEditorSidebar, loadProfileContentIntoEditor } from './profile-editor.js';
 import { saveConfigView, refreshLLMModels, loadConfigView } from './config-editor.js';
 
-// Make RESOLUTIONS globally accessible
-window.RESOLUTIONS = RESOLUTIONS;
+/**
+ * Show the generate view.
+ */
+export function showGenerateView() {
+    switchView(['editor', 'config'], 'generate');
+}
 
-// Make functions globally accessible for inline handlers
-window.downloadProfile = (name) => {
-    window.location.href = `/api/profile-editor/download/${encodeURIComponent(name)}`;
-};
+/**
+ * Show the profile editor view.
+ */
+export async function showProfileEditor() {
+    switchView(['generate', 'config'], 'editor');
+    populateEditorProfileList();
+    syncEditorSidebar();
+    if (state.currentProfile) {
+        await loadProfileContentIntoEditor(state.currentProfile);
+    }
+}
 
-window.downloadAllProfiles = () => {
-    window.location.href = '/api/profile-editor/download-all';
-};
+/**
+ * Show the config editor view.
+ */
+export function showConfigEditor() {
+    switchView(['generate', 'editor'], 'config');
+    loadConfigView();
+}
 
+/**
+ * Handle file upload and preview.
+ */
+function handleFileUpload(file) {
+    if (!file.type.startsWith('image/')) {
+        showError('Please select an image file (PNG or JPG)');
+        return;
+    }
+    
+    state.selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        DOM.previewImage.src = ev.target.result;
+        DOM.previewImage.style.display = 'block';
+        startProcessing();
+    };
+    reader.readAsDataURL(file);
+}
 
 /**
  * Load profiles from backend and update UI.
@@ -59,21 +92,10 @@ window.refreshProfilesAndUI = async function(extraCallback = null) {
     if (extraCallback) extraCallback();
 };
 
-/**
- * Switch views (main coordination function).
- */
-window.switchViewMain = function(hideViews, showView, refreshProfiles) {
-    switchView(hideViews, showView, refreshProfiles);
-};
-
-/**
- * Load configuration view (exposed for profile-editor.js).
- */
-window.loadConfigView = loadConfigView;
-
 // Profile selection change handler
 function handleProfileChange(e) {
     state.currentProfile = e.target.value;
+    syncEditorSidebar();
 }
 
 // Image generation
@@ -170,7 +192,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     DOM.navConfig?.addEventListener('click', showConfigEditor);
     DOM.refreshModelsBtn?.addEventListener('click', refreshLLMModels);
     DOM.saveConfigBtn?.addEventListener('click', saveConfigView);
-    DOM.downloadAllBtn?.addEventListener('click', () => window.location.href = '/api/profile-editor/download-all');
+    DOM.downloadAllBtn?.addEventListener('click', downloadAllProfiles);
     
     // Editor tab handlers
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -201,40 +223,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
         uploadSection.classList.remove('dragover');
         if (e.dataTransfer.files.length > 0) {
-            state.selectedFile = e.dataTransfer.files[0];
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                DOM.previewImage.src = ev.target.result;
-                DOM.previewImage.style.display = 'block';
-                startProcessing();
-            };
-            reader.readAsDataURL(e.dataTransfer.files[0]);
+            handleFileUpload(e.dataTransfer.files[0]);
         }
     });
     
     // File input handlers
     DOM.fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
-            state.selectedFile = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                DOM.previewImage.src = ev.target.result;
-                DOM.previewImage.style.display = 'block';
-                startProcessing();
-            };
-            reader.readAsDataURL(e.target.files[0]);
+            handleFileUpload(e.target.files[0]);
         }
     });
     DOM.cameraInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
-            state.selectedFile = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                DOM.previewImage.src = ev.target.result;
-                DOM.previewImage.style.display = 'block';
-                startProcessing();
-            };
-            reader.readAsDataURL(e.target.files[0]);
+            handleFileUpload(e.target.files[0]);
         }
     });
     
@@ -265,7 +266,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     
     DOM.resolutionSelect.addEventListener('change', (e) => {
-        state.currentResolution = window.RESOLUTIONS[e.target.value] || { width: 768, height: 1024 };
+        state.currentResolution = RESOLUTIONS[e.target.value] || { width: 768, height: 1024 };
     });
     
     DOM.downloadBtn.addEventListener('click', () => {

@@ -1,7 +1,23 @@
 // UI operations and custom dialog components
 
-import { DOM, RESOLUTIONS, MAX_HISTORY, state } from './state.js';
-import { generateRandomSeed } from './api.js';
+import { DOM, state } from './state.js';
+
+// View switching (main navigation between Generate, Profile Editor, Settings)
+export function switchView(hideViews, showView) {
+    const hideList = Array.isArray(hideViews) ? hideViews : [hideViews];
+
+    const isActiveGenerate = !hideList.includes('generate');
+    const isActiveEditor = !hideList.includes('editor');
+    const isActiveConfig = !hideList.includes('config');
+
+    DOM.navGenerate?.classList.toggle('active', isActiveGenerate);
+    DOM.navEditor?.classList.toggle('active', isActiveEditor);
+    DOM.navConfig?.classList.toggle('active', isActiveConfig);
+
+    DOM.screen1.parentElement.style.display = isActiveGenerate ? 'block' : 'none';
+    DOM.profileEditorContainer.style.display = isActiveEditor ? 'flex' : 'none';
+    DOM.configEditorContainer.style.display = isActiveConfig ? 'block' : 'none';
+}
 
 // Screen navigation
 export function showScreen(screenNumber) {
@@ -31,10 +47,6 @@ export function resetProgress() {
  * @param {number} duration - Auto-dismiss duration in milliseconds (0 to disable)
  */
 export function notify(message, type = 'error', duration = 3000) {
-    if (window.notificationTimeout) {
-        clearTimeout(window.notificationTimeout);
-    }
-    
     DOM.errorMessage.textContent = message;
     DOM.errorContainer.classList.add('show');
     DOM.errorContainer.classList.toggle('notification', type === 'success');
@@ -174,17 +186,20 @@ export function showConfirm(message) {
  * @param {Function} onSelect - Callback when first profile is selected (with profile name)
  */
 export function populateSelect(selectElement, profiles, onSelect) {
+    const currentValue = selectElement.value;
     selectElement.innerHTML = '';
     profiles.forEach((profile, index) => {
         const option = document.createElement('option');
         option.value = profile.name;
         option.textContent = profile.name;
         selectElement.appendChild(option);
-        if (index === 0 && onSelect) {
-            option.selected = true;
-            onSelect(profile.name);
-        }
     });
+    if (currentValue && profiles.some(p => p.name === currentValue)) {
+        selectElement.value = currentValue;
+    } else if (profiles.length > 0 && onSelect) {
+        selectElement.value = profiles[0].name;
+        onSelect(profiles[0].name);
+    }
 }
 
 /**
@@ -202,29 +217,6 @@ export function setupMobileCameraButton() {
     if (isMobileDevice()) {
         document.querySelector('.camera-button-container').style.display = 'flex';
     }
-}
-
-/**
- * Handle file upload.
- * @param {File} file - The uploaded file
- * @param {Function} [onLoaded] - Optional callback after file is loaded
- */
-export function handleFile(file, onLoaded) {
-    if (!file.type.startsWith('image/')) {
-        showError('Please select an image file (PNG or JPG)');
-        return;
-    }
-    
-    resetState();
-    
-    state.selectedFile = file;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        DOM.previewImage.src = e.target.result;
-        DOM.previewImage.style.display = 'block';
-        if (onLoaded) onLoaded();
-    };
-    reader.readAsDataURL(file);
 }
 
 /**

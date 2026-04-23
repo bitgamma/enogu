@@ -45,6 +45,7 @@ body {
 .main-content {
     max-width: 900px;
     margin: 0 auto;
+    position: relative;
 }
 
 h1 {
@@ -138,9 +139,6 @@ h1 {
 }
 
 /* Main Content */
-.main-content {
-    position: relative;
-}
 
 .screen {
     display: none;
@@ -826,13 +824,6 @@ label {
     color: var(--color-success-text);
 }
 
-.editor-container {
-    display: flex;
-    min-height: calc(100vh - 150px);
-    background: var(--color-background);
-    overflow: hidden;
-}
-
 .config-editor-container {
     margin-left: 250px;
 }
@@ -856,19 +847,6 @@ label {
 .editor-actions {
     display: flex;
     gap: 10px;
-}
-
-.profile-editor .editor-header {
-    padding: 16px 20px;
-    background: var(--color-background);
-}
-
-.profile-editor .editor-header h2 {
-    font-size: 18px;
-}
-
-.profile-editor .editor-actions {
-    gap: 8px;
 }
 
 .config-editor-content {

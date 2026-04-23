@@ -93,7 +93,6 @@ export const state = {
     upscaleResolution: 2048,
     
     // Profile editor state
-    editorCurrentProfile: null,
     editorProfileData: { extraction_prompt: '', workflow: '', mappings: '' },
     editorOriginalNames: new Set(),
     
@@ -102,6 +101,14 @@ export const state = {
     availableLLMModels: [],
     modelsLoading: false,
 };
+
+/**
+ * Generate a random seed value.
+ * @returns {number} Random seed
+ */
+export function generateRandomSeed() {
+    return Math.floor(Math.random() * 4294967295);
+}
 
 // Action button configurations
 export const ACTION_BUTTONS = [
@@ -122,7 +129,7 @@ export const PROFILE_OPERATIONS = {
             workflow: DOM.workflowEditor.value,
             mappings: DOM.mappingsEditor.value
         }),
-        onsuccess: () => !state.editorOriginalNames.has(state.editorCurrentProfile) ? window.refreshProfilesAndUI() : null
+        onsuccess: () => !state.editorOriginalNames.has(state.currentProfile) ? window.refreshProfilesAndUI() : null
     },
     duplicate: {
         endpoint: '/api/profile-editor/profile/duplicate',
@@ -140,8 +147,7 @@ export const PROFILE_OPERATIONS = {
         validate: (newName) => !state.editorOriginalNames.has(newName),
         buildPayload: (name, newName) => ({ old_name: name, new_name: newName }),
         onsuccess: (newName) => {
-            state.editorCurrentProfile = newName;
-            window.refreshProfilesAndUI(() => { DOM.editorProfileName.textContent = newName; });
+            window.refreshProfilesAndUI(() => { DOM.editorProfileName.textContent = newName; DOM.profileSelect.value = newName; });
         }
     },
     delete: {
@@ -151,7 +157,8 @@ export const PROFILE_OPERATIONS = {
         confirm: (name) => `Are you sure you want to delete profile "${name}"? This action cannot be undone.`,
         buildPayload: (name) => ({ name }),
         onsuccess: () => {
-            state.editorCurrentProfile = null;
+            state.currentProfile = null;
+            DOM.profileSelect.value = '';
             state.editorProfileData = { extraction_prompt: '', workflow: '', mappings: '' };
             DOM.editorProfileName.textContent = 'Select a profile';
             DOM.saveProfileBtn.disabled = true;

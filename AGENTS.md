@@ -37,9 +37,15 @@ imagegen/
 │   ├── test_image.py
 │   ├── test_profile_manager.py
 │   └── test_validation.py
-├── frontend/           # Static frontend files
+├── frontend/           # Static frontend files (ES modules)
 │   ├── index.html      # Main HTML page
-│   ├── app.js          # Frontend JavaScript logic
+│   ├── main.js         # Entry point, navigation handlers, event binding
+│   ├── api.js          # API call functions with error handling
+│   ├── state.js        # Centralized state management and DOM registry
+│   ├── ui.js           # UI operations, view switching, custom dialog components
+│   ├── history.js      # Image history management
+│   ├── profile-editor.js # Profile editor logic
+│   ├── config-editor.js  # Configuration editor logic
 │   └── styles.css      # CSS styling
 └── profiles/           # Profile configurations
     └── <profile_name>/ # Individual profile directories
@@ -128,22 +134,66 @@ Central configuration module:
 
 ### Frontend
 
-The frontend consists of three files:
+The frontend follows a modular ES module architecture with separation of concerns across multiple files:
 
-1. **index.html**: The main user interface with three screens:
-   - Screen 1: Profile selection and image upload
-   - Screen 2: Processing (analysis + generation)
-   - Screen 3: Result display with controls
+#### Files
 
-2. **app.js**: Handles user interactions, API calls, and UI updates
-   - Profile loading and selection
-   - Image upload (drag-and-drop, file input, mobile camera)
-   - Progress bar with step indicators
-   - Image history management (last 10 images)
-   - Resolution and upscaling controls
-   - Profile editor and configuration management
+1. **index.html**: The main user interface with three navigation views:
+   - **Generate view**: Three-screen flow (Profile Selection & Image Upload, Processing, Result)
+   - **Profile Editor view**: Sidebar with profile list + main area with tabbed editors for `extraction_prompt.txt`, `workflow.json`, `mappings.json`
+   - **Settings view**: Configuration editor for providers (ComfyUI endpoint, LLM endpoint, API key, model selection)
 
-3. **styles.css**: Visual styling and layout
+2. **main.js**: Entry point - DOM initialization, navigation handlers, event binding
+    - Profile loading and selection
+    - Image upload handling (drag-and-drop, file input, mobile camera)
+    - Image analysis and generation flow coordination
+    - View switching handlers (`showGenerateView`, `showProfileEditor`, `showConfigEditor`)
+    - Action button setup with async handler wrappers
+
+3. **api.js**: API call functions with standardized error handling
+   - `apiCall()`: Generic HTTP helper with response validation
+   - `analyzeImageAPI()`, `generateImageAPI()`: Core generation endpoints
+   - `loadProfiles()`, `loadConfig()`, `saveConfig()`: Data management
+   - `loadProfileContent()`, `saveProfile()`, `duplicateProfile()`, `renameProfile()`, `deleteProfile()`: Profile CRUD
+   - `downloadProfile()`, `downloadAllProfiles()`: Profile export
+   - `handleApiResponse()`: Response handler for profile operations
+
+4. **state.js**: Centralized state management and DOM registry
+   - `DOM`: Registry of all DOM element references
+   - `RESOLUTIONS`: Resolution configuration map
+   - `state`: Mutable application state object (profile selection, image handling, processing state, history, editor state, config)
+   - `ACTION_BUTTONS`: Configuration array for async button handlers
+   - `PROFILE_OPERATIONS`: Configuration object defining save/duplicate/rename/delete operations
+   - `generateRandomSeed()`: Seed generation utility
+
+5. **ui.js**: UI operations and custom dialog components
+    - `switchView()`: Main view switching (Generate/Profile Editor/Settings)
+    - `showScreen()`, `resetProgress()`: Screen navigation and progress management
+    - `notify()`, `showError()`, `showSuccess()`: Unified notification system
+    - `showPrompt()`, `showConfirm()`: Custom dialog components (replacing native `prompt`/`confirm`)
+    - `populateSelect()`: Select element population helper
+    - `setupMobileCameraButton()`: Mobile device detection and camera button visibility
+    - `resetState()`: Application state reset
+    - `createAsyncHandler()`: Async button handler wrapper with loading/error/disabled state management
+
+6. **history.js**: Image history management
+   - `addToHistory()`: Add images to history (max 10), deduplication
+   - `removeFromHistory()`: Remove images by index
+   - `renderHistory()`: Render history thumbnails with click-to-restore
+
+7. **profile-editor.js**: Profile editor logic
+    - `populateEditorProfileList()`: Render sidebar profile list
+    - `selectProfileForEdit()`: Load profile content into editors
+    - `switchEditorTab()`: Tab switching for extraction_prompt/workflow/mappings
+    - `executeProfileOperation()`: Generic operation executor for save/duplicate/rename/delete
+    - `saveCurrentProfile()`, `duplicateCurrentProfile()`, `renameCurrentProfile()`, `deleteCurrentProfile()`: Operation handlers
+
+8. **config-editor.js**: Configuration editor logic
+   - `loadConfigView()`: Load providers configuration into form fields
+   - `saveConfigView()`: Validate and save configuration
+   - `refreshLLMModels()`: Fetch and populate LLM model list
+
+9. **styles.css**: Visual styling and layout
 
 ### Profiles
 

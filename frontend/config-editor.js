@@ -102,12 +102,4 @@ export async function refreshLLMModels() {
     }
 }
 
-/**
- * Populate LLM model select from already-loaded data.
- */
-export function populateModelSelect() {
-    if (state.availableLLMModels.length > 0) {
-        const modelOptions = state.availableLLMModels.map(m => ({name: m}));
-        populateSelect(DOM.llmModel, modelOptions);
-    }
-}
+
