@@ -1,6 +1,6 @@
 # Enogu - Redraw Reality
 
-> **Note** This project is vibecoded using RooCode backed by Qwen3.5-35B-A3B via Lemonade. It is an experiment to assess coding capabilities of this model in my current setup. It also happens to scratch an itch I had an am having lots of fun using it but that doesn't mean that it will be useful to you. It does nothing that you couldn't do using ComfyUI + your favorite LLM tool alone.
+> **Note** This project is vibecoded using various models (Qwen3.5-35B-A3B, Qwen3.5-122B-A3B, Qwen3.6-35B-A3B) with different tools (RooCode, KiloCode, OpenCode) via Lemonade. It is a test bench to test new harnesses and models. It also happens to scratch an itch I had an am having lots of fun using it but that doesn't mean that it will be useful to you. It does nothing that you couldn't do using ComfyUI + your favorite LLM tool alone.
 
 A web application that processes uploaded images through an LLM for analysis and generates new images via ComfyUI integration. The application supports multiple profiles for different generation configurations. The profile is made of a ComfyUI workflow and a prompt to send to the LLM together with the reference image in order to produce the image generation prompt. By playing with this "extraction" prompt you can have the LLM generate interesting prompts, which makes the whole thing quite fun to use.
 

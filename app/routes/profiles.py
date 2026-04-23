@@ -16,6 +16,7 @@ from app.models import (
     ProfileSaveRequest,
     ProfileSaveResponse,
 )
+from app.routes.generation import invalidate_profile_cache
 from app.utils import (
     ProfileManager,
     validate_json,
@@ -50,15 +51,12 @@ async def save_profile(request: ProfileSaveRequest) -> ProfileSaveResponse:
 
     files = {
         "extraction_prompt.txt": request.extraction_prompt,
-        "workflow.json": workflow
-        if isinstance(workflow, str)
-        else json.dumps(workflow, indent=4),
-        "mappings.json": mappings
-        if isinstance(mappings, str)
-        else json.dumps(mappings, indent=4),
+        "workflow.json": workflow if isinstance(workflow, str) else json.dumps(workflow, indent=4),
+        "mappings.json": mappings if isinstance(mappings, str) else json.dumps(mappings, indent=4),
     }
 
     profile_manager.save_files(request.name, files)
+    invalidate_profile_cache(request.name)
     return ProfileSaveResponse(message=f"Profile '{request.name}' saved")
 
 
@@ -74,9 +72,9 @@ async def duplicate_profile(
     profile_manager.ensure_not_exists(request.new_name)
 
     profile_manager.duplicate(request.source_name, request.new_name)
-    return ProfileDuplicateResponse(
-        message=f"Profile '{request.source_name}' duplicated as '{request.new_name}'"
-    )
+    invalidate_profile_cache(request.source_name)
+    invalidate_profile_cache(request.new_name)
+    return ProfileDuplicateResponse(message=f"Profile '{request.source_name}' duplicated as '{request.new_name}'")
 
 
 @router.delete("/profile/{profile_name}", response_model=ProfileDeleteResponse)
@@ -84,6 +82,7 @@ async def delete_profile(profile_name: str) -> ProfileDeleteResponse:
     """Delete a profile."""
     profile_manager.ensure_exists(profile_name)
     profile_manager.delete(profile_name)
+    invalidate_profile_cache(profile_name)
     return ProfileDeleteResponse(message=f"Profile '{profile_name}' deleted")
 
 
@@ -97,9 +96,9 @@ async def rename_profile(request: ProfileRenameRequest) -> ProfileRenameResponse
     profile_manager.ensure_not_exists(request.new_name)
 
     profile_manager.rename(request.old_name, request.new_name)
-    return ProfileRenameResponse(
-        message=f"Profile '{request.old_name}' renamed to '{request.new_name}'"
-    )
+    invalidate_profile_cache(request.old_name)
+    invalidate_profile_cache(request.new_name)
+    return ProfileRenameResponse(message=f"Profile '{request.old_name}' renamed to '{request.new_name}'")
 
 
 @router.get("/download/{profile_name}")
