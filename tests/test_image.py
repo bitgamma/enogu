@@ -1,10 +1,9 @@
 """Tests for image utilities."""
 
-import pytest
 from PIL import Image
 
-from app.utils import resize_image_for_llm, encode_image_to_base64
 from app.config import MAX_LLM_IMAGE_PIXELS
+from app.utils import encode_image_to_base64, resize_image_for_llm
 
 
 class TestResizeImageForLLM:

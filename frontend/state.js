@@ -29,6 +29,7 @@ export const DOM = {
     llmApiKey: document.getElementById('llmApiKey'),
     llmModel: document.getElementById('llmModel'),
     refreshModelsBtn: document.getElementById('refreshModelsBtn'),
+    llmSystemPrompt: document.getElementById('llmSystemPrompt'),
     saveConfigBtn: document.getElementById('saveConfigBtn'),
     progressFill: document.getElementById('progressFill'),
     stepIndicator1: document.getElementById('stepIndicator1'),

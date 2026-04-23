@@ -1,7 +1,5 @@
 """Main FastAPI application entry point."""
 
-from pathlib import Path
-
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -11,21 +9,19 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import FRONTEND_DIR, get_server_config
 from app.routes import config_router, generation_router, profiles_router
-from app.utils import AppException
+from app.utils import AppError
 
 app = FastAPI(title="Image Generation Webapp")
 
 
-@app.exception_handler(AppException)
-async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+@app.exception_handler(AppError)
+async def app_exception_handler(request: Request, exc: AppError) -> JSONResponse:
     """Handle custom application exceptions."""
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle FastAPI validation errors."""
     return JSONResponse(
         status_code=422,
@@ -72,8 +68,8 @@ app.include_router(config_router)
 @app.get("/api/profiles")
 async def list_profiles() -> dict:
     """List all available profiles."""
-    from app.utils import ProfileManager
     from app.config import PROFILES_DIR
+    from app.utils import ProfileManager
 
     manager = ProfileManager(PROFILES_DIR)
     return {"profiles": manager.list_profiles()}

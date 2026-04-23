@@ -3,11 +3,11 @@
 import copy
 import json
 import re
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Any
 
-from fastapi import HTTPException, UploadFile
-
+from fastapi import HTTPException
 
 # Parameter mapping handlers - maps param names to their input keys and values
 PARAM_HANDLERS = {
@@ -24,9 +24,7 @@ def validate_profile_name(name: str) -> bool:
     return bool(re.match(r"^[a-zA-Z0-9_-]+$", name))
 
 
-def validate_profile_name_or_raise(
-    name: Optional[str], field: str = "profile name"
-) -> None:
+def validate_profile_name_or_raise(name: str | None, field: str = "profile name") -> None:
     """Validate profile name and raise HTTPException if invalid."""
     if not name or not validate_profile_name(name):
         raise HTTPException(status_code=400, detail=f"Invalid {field}")
@@ -101,7 +99,7 @@ def handle_api_errors(func: Callable) -> Callable:
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     return wrapper
 
@@ -119,7 +117,7 @@ def success_response(**kwargs: Any) -> dict:
     return {"success": True, **kwargs}
 
 
-def validate_json(value: Any, field_name: str = "field") -> Optional[dict]:
+def validate_json(value: Any, field_name: str = "field") -> dict | None:
     """Validate and parse JSON string or return dict as-is. Returns None if value is None."""
     if value is None:
         return None
@@ -128,7 +126,7 @@ def validate_json(value: Any, field_name: str = "field") -> Optional[dict]:
             return json.loads(value)
         return value  # Already a dict
     except (json.JSONDecodeError, TypeError):
-        raise HTTPException(status_code=400, detail=f"Invalid {field_name} JSON")
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name} JSON") from None
 
 
 def extract_model_names(models: list) -> list[str]:

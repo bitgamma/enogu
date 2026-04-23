@@ -4,9 +4,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 
 from app.utils import ProfileManager
-from fastapi import HTTPException
 
 
 @pytest.fixture

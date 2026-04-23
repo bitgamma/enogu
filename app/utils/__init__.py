@@ -1,7 +1,7 @@
 """Utility modules."""
 
 from app.utils.exceptions import (
-    AppException,
+    AppError,
     ComfyUIConnectionError,
     ComfyUIError,
     ConfigurationError,
@@ -27,7 +27,7 @@ from app.utils.validation import (
 )
 
 __all__ = [
-    "AppException",
+    "AppError",
     "ComfyUIConnectionError",
     "ComfyUIError",
     "ConfigurationError",

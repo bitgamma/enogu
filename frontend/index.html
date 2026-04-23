@@ -224,6 +224,10 @@
                                 <button class="btn primary" id="refreshModelsBtn">Refresh Models</button>
                             </div>
                         </div>
+                        <div class="config-field">
+                            <label for="llmSystemPrompt" class="label">LLM System Prompt:</label>
+                            <textarea id="llmSystemPrompt" class="prompt-text" rows="4" placeholder="You are an image analysis assistant specialized in extracting image generation prompts. Your task is to analyze the uploaded image and extract a detailed prompt for image generation. You MUST call the generate_image tool with your extracted prompt and status."></textarea>
+                        </div>
                         <div class="config-actions">
                             <button class="btn primary" id="saveConfigBtn">Save Configuration</button>
                         </div>

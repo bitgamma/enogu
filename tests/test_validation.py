@@ -1,14 +1,13 @@
 """Tests for validation utilities."""
 
 import pytest
+from fastapi import HTTPException
 
 from app.utils import (
-    PARAM_HANDLERS,
     apply_mappings,
     validate_profile_name,
     validate_profile_name_or_raise,
 )
-from fastapi import HTTPException
 
 
 class TestValidateProfileName:

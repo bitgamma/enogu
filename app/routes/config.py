@@ -3,9 +3,8 @@
 from fastapi import APIRouter, HTTPException
 
 from app.config import get_providers, save_providers
-from app.models import ConfigResponse, ProviderSaveResponse
+from app.models import ConfigResponse, ModelListResponse, ProviderSaveResponse
 from app.services.llm import create_llm_service
-from app.models import ModelListResponse
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 

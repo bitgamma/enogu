@@ -17,6 +17,7 @@ export async function loadConfigView() {
             DOM.comfyuiEndpoint.value = state.currentConfig.comfyui_endpoint || '';
             DOM.llmEndpoint.value = state.currentConfig.llm_endpoint || '';
             DOM.llmApiKey.value = state.currentConfig.llm_apikey || '';
+            DOM.llmSystemPrompt.value = state.currentConfig.system_prompt || '';
             await refreshLLMModels();
             if (state.currentConfig.llm_model) {
                 DOM.llmModel.value = state.currentConfig.llm_model;
@@ -36,6 +37,7 @@ export async function saveConfigView() {
     const llmEndpoint = DOM.llmEndpoint.value.trim();
     const llmApiKey = DOM.llmApiKey.value.trim();
     const llmModel = DOM.llmModel.value;
+    const llmSystemPrompt = DOM.llmSystemPrompt.value.trim();
     
     if (!comfyuiEndpoint || !llmEndpoint || !llmApiKey || !llmModel) {
         showError('All fields are required');
@@ -47,7 +49,8 @@ export async function saveConfigView() {
             comfyui_endpoint: comfyuiEndpoint,
             llm_endpoint: llmEndpoint,
             llm_apikey: llmApiKey,
-            llm_model: llmModel
+            llm_model: llmModel,
+            system_prompt: llmSystemPrompt
         }
     };
     

@@ -3,7 +3,6 @@
 import asyncio
 import base64
 import time
-from typing import Optional
 
 import requests
 from fastapi import HTTPException
@@ -32,9 +31,7 @@ class ComfyUIService:
         )
 
         if queue_response.status_code != 200:
-            raise HTTPException(
-                status_code=500, detail=f"ComfyUI queue error: {queue_response.text}"
-            )
+            raise HTTPException(status_code=500, detail=f"ComfyUI queue error: {queue_response.text}")
 
         prompt_id = queue_response.json()["prompt_id"]
 
@@ -60,9 +57,7 @@ class ComfyUIService:
         )
 
         if queue_response.status_code != 200:
-            raise HTTPException(
-                status_code=500, detail=f"ComfyUI queue error: {queue_response.text}"
-            )
+            raise HTTPException(status_code=500, detail=f"ComfyUI queue error: {queue_response.text}")
 
         prompt_id = queue_response.json()["prompt_id"]
 
@@ -79,9 +74,7 @@ class ComfyUIService:
 
     def _poll_history(self, prompt_id: str) -> dict:
         """Poll ComfyUI history synchronously until workflow completes or fails."""
-        for _ in range(
-            int(COMFYUI_POLL_TIMEOUT_SECONDS / COMFYUI_POLL_INTERVAL_SECONDS)
-        ):
+        for _ in range(int(COMFYUI_POLL_TIMEOUT_SECONDS / COMFYUI_POLL_INTERVAL_SECONDS)):
             history_response = requests.get(f"{self.endpoint}/history/{prompt_id}")
 
             if history_response.status_code != 200:
@@ -101,9 +94,7 @@ class ComfyUIService:
 
     async def _poll_history_async(self, prompt_id: str) -> dict:
         """Poll ComfyUI history asynchronously until workflow completes or fails."""
-        for _ in range(
-            int(COMFYUI_POLL_TIMEOUT_SECONDS / COMFYUI_POLL_INTERVAL_SECONDS)
-        ):
+        for _ in range(int(COMFYUI_POLL_TIMEOUT_SECONDS / COMFYUI_POLL_INTERVAL_SECONDS)):
             history_response = requests.get(f"{self.endpoint}/history/{prompt_id}")
 
             if history_response.status_code != 200:
@@ -123,7 +114,7 @@ class ComfyUIService:
 
     def _extract_image(self, outputs: dict) -> str:
         """Extract and encode the first image from ComfyUI workflow outputs."""
-        for node_id, node_data in outputs.items():
+        for _node_id, node_data in outputs.items():
             if "images" in node_data:
                 image_data = node_data["images"][0]
                 image_bytes = requests.get(

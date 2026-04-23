@@ -2,16 +2,14 @@
 
 import json
 import shutil
+import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any, Optional
 
 from fastapi import HTTPException
 
 
-def read_file_content(
-    path: Path, strip: bool = False, as_json: bool = False
-) -> Optional[str | dict]:
+def read_file_content(path: Path, strip: bool = False, as_json: bool = False) -> str | dict | None:
     """Read file content with optional processing. Returns None if file doesn't exist."""
     if not path.exists():
         return None
@@ -40,16 +38,12 @@ class ProfileManager:
     def ensure_exists(self, profile_name: str) -> None:
         """Raise HTTPException if profile does not exist."""
         if not (self.profiles_dir / profile_name).exists():
-            raise HTTPException(
-                status_code=404, detail=f"Profile '{profile_name}' not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
 
     def ensure_not_exists(self, profile_name: str) -> None:
         """Raise HTTPException if profile already exists."""
         if (self.profiles_dir / profile_name).exists():
-            raise HTTPException(
-                status_code=400, detail=f"Profile '{profile_name}' already exists"
-            )
+            raise HTTPException(status_code=400, detail=f"Profile '{profile_name}' already exists")
 
     def list_profiles(self) -> list[dict]:
         """List all profiles that have an extraction_prompt.txt file."""
@@ -63,16 +57,14 @@ class ProfileManager:
         """Read all files from a profile directory."""
         profile_path = self.profiles_dir / profile_name
         if not profile_path.exists():
-            raise HTTPException(
-                status_code=404, detail=f"Profile '{profile_name}' not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found")
         files = {}
         for filename in ["extraction_prompt.txt", "workflow.json", "mappings.json"]:
             filepath = profile_path / filename
             files[filename] = filepath.read_text() if filepath.exists() else None
         return files
 
-    def save_files(self, profile_name: str, files: dict[str, Optional[str]]) -> None:
+    def save_files(self, profile_name: str, files: dict[str, str | None]) -> None:
         """Save all files to a profile directory."""
         profile_path = self.profiles_dir / profile_name
         profile_path.mkdir(parents=True, exist_ok=True)
@@ -88,23 +80,17 @@ class ProfileManager:
 
     def rename(self, old_name: str, new_name: str) -> None:
         """Rename a profile directory."""
-        shutil.move(
-            str(self.profiles_dir / old_name), str(self.profiles_dir / new_name)
-        )
+        shutil.move(str(self.profiles_dir / old_name), str(self.profiles_dir / new_name))
 
     def duplicate(self, source_name: str, new_name: str) -> None:
         """Duplicate a profile directory with a new name."""
-        shutil.copytree(
-            str(self.profiles_dir / source_name), str(self.profiles_dir / new_name)
-        )
+        shutil.copytree(str(self.profiles_dir / source_name), str(self.profiles_dir / new_name))
 
     def _create_temp_zip(self) -> str:
         """Create a temporary zip file and return its path."""
         return tempfile.NamedTemporaryFile(delete=False, suffix=".zip").name
 
-    def _write_to_zip(
-        self, zipf: zipfile.ZipFile, single_profile: Optional[str] = None
-    ) -> None:
+    def _write_to_zip(self, zipf: zipfile.ZipFile, single_profile: str | None = None) -> None:
         """Write profile files to a ZIP archive."""
         if single_profile:
             profile_path = self.profiles_dir / single_profile
@@ -130,7 +116,3 @@ class ProfileManager:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
             self._write_to_zip(zipf)
         return zip_path
-
-
-# Import tempfile at module level
-import tempfile

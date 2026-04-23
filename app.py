@@ -9,9 +9,10 @@ This module re-exports the FastAPI app from the new modular structure.
 from app.main import app
 
 if __name__ == "__main__":
-    from app.main import app
-    from app.config import get_server_config
     import uvicorn
+
+    from app.config import get_server_config
+    from app.main import app
 
     server_config = get_server_config()
     host = server_config.get("host", "0.0.0.0")

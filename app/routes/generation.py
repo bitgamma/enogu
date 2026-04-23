@@ -2,20 +2,17 @@
 
 import copy
 import io
-from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, File, Form, UploadFile
 
-from app.config import PROFILES_DIR, get_config
+from app.config import PROFILES_DIR
 from app.models import AnalyzeResponse, GenerateResponse
-from app.services.comfyui import ComfyUIService, create_comfyui_service
-from app.services.llm import LLMService, create_llm_service
+from app.services.comfyui import create_comfyui_service
+from app.services.llm import create_llm_service
 from app.utils import (
     PARAM_HANDLERS,
     handle_api_errors,
     read_file_content,
-    success_response,
 )
 from app.utils.image import Image
 
@@ -24,19 +21,9 @@ router = APIRouter(prefix="/api", tags=["generation"])
 
 def get_profile(profile_name: str) -> dict:
     """Load a profile configuration by name."""
-    providers = get_config().get("providers", {})
     profile_settings = {
-        "comfyui_endpoint": providers["comfyui_endpoint"],
-        "llm_endpoint": providers["llm_endpoint"],
-        "llm_apikey": providers["llm_apikey"],
-        "llm_model": providers["llm_model"],
         "name": profile_name,
     }
-
-    # Load system prompt from config if available, otherwise use default
-    from app.config import DEFAULT_SYSTEM_PROMPT
-
-    profile_settings["system_prompt"] = providers.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
 
     # Load extraction prompt from profile directory
     prompt_file_path = PROFILES_DIR / profile_name / "extraction_prompt.txt"
@@ -141,7 +128,7 @@ def get_cached_profile(profile_name: str) -> dict:
     return _profile_cache[profile_name]
 
 
-def invalidate_profile_cache(profile_name: Optional[str] = None) -> None:
+def invalidate_profile_cache(profile_name: str | None = None) -> None:
     """Invalidate profile cache. If profile_name is provided, only invalidate that profile."""
     if profile_name:
         _profile_cache.pop(profile_name, None)

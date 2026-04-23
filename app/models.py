@@ -1,6 +1,5 @@
 """Pydantic models for API request/response validation."""
 
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -12,7 +11,7 @@ class ProviderConfig(BaseModel):
     llm_endpoint: str = Field(..., description="LLM API endpoint")
     llm_apikey: str = Field(..., description="API key for LLM access")
     llm_model: str = Field(..., description="LLM model name")
-    system_prompt: Optional[str] = Field(
+    system_prompt: str | None = Field(
         None, description="Custom system prompt for tool calling"
     )
 
@@ -21,11 +20,11 @@ class ProfileSaveRequest(BaseModel):
     """Request body for saving a profile."""
 
     name: str = Field(..., description="Profile name")
-    extraction_prompt: Optional[str] = Field(
+    extraction_prompt: str | None = Field(
         None, description="Extraction prompt content"
     )
-    workflow: Optional[str] = Field(None, description="Workflow JSON content or object")
-    mappings: Optional[str] = Field(None, description="Mappings JSON content or object")
+    workflow: str | None = Field(None, description="Workflow JSON content or object")
+    mappings: str | None = Field(None, description="Mappings JSON content or object")
 
 
 class ProfileDuplicateRequest(BaseModel):
@@ -78,9 +77,9 @@ class ProfileContent(BaseModel):
     """Full profile content for editor."""
 
     name: str
-    extraction_prompt: Optional[str] = None
-    workflow: Optional[str] = None
-    mappings: Optional[str] = None
+    extraction_prompt: str | None = None
+    workflow: str | None = None
+    mappings: str | None = None
 
 
 class ProfileSaveResponse(BaseModel):

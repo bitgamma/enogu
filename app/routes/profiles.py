@@ -1,19 +1,16 @@
 """Profile editor routes."""
 
 import json
-from typing import Optional
 
 from fastapi import APIRouter
 from fastapi.responses import FileResponse
 
-from app.config import PROFILES_DIR, get_config, save_providers
+from app.config import PROFILES_DIR
 from app.models import (
-    ConfigResponse,
     ProfileContent,
     ProfileDeleteResponse,
     ProfileDuplicateRequest,
     ProfileDuplicateResponse,
-    ProfileListResponse,
     ProfileRenameRequest,
     ProfileRenameResponse,
     ProfileSaveRequest,
@@ -21,7 +18,6 @@ from app.models import (
 )
 from app.utils import (
     ProfileManager,
-    success_response,
     validate_json,
     validate_profile_name_or_raise,
 )

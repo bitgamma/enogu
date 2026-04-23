@@ -1,7 +1,6 @@
 """LLM service for image analysis."""
 
 import json
-from typing import Optional
 
 import requests
 from fastapi import HTTPException
@@ -25,7 +24,7 @@ class LLMService:
         endpoint: str,
         apikey: str,
         model: str,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
     ) -> None:
         self.endpoint = endpoint
         self.apikey = apikey
