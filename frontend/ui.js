@@ -2,20 +2,23 @@
 
 import { DOM, state } from './state.js';
 
-// View switching (main navigation between Generate, Profile Editor, Settings)
+// View switching (main navigation between Generate, Profile Editor, Gallery, Settings)
 export function switchView(hideViews, showView) {
     const hideList = Array.isArray(hideViews) ? hideViews : [hideViews];
 
     const isActiveGenerate = !hideList.includes('generate');
     const isActiveEditor = !hideList.includes('editor');
+    const isActiveGallery = !hideList.includes('gallery');
     const isActiveConfig = !hideList.includes('config');
 
     DOM.navGenerate?.classList.toggle('active', isActiveGenerate);
     DOM.navEditor?.classList.toggle('active', isActiveEditor);
+    DOM.navGallery?.classList.toggle('active', isActiveGallery);
     DOM.navConfig?.classList.toggle('active', isActiveConfig);
 
     DOM.screen1.parentElement.style.display = isActiveGenerate ? 'block' : 'none';
     DOM.profileEditorContainer.style.display = isActiveEditor ? 'flex' : 'none';
+    DOM.galleryContainer.style.display = isActiveGallery ? 'block' : 'none';
     DOM.configEditorContainer.style.display = isActiveConfig ? 'block' : 'none';
 }
 

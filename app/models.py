@@ -1,6 +1,5 @@
 """Pydantic models for API request/response validation."""
 
-
 from pydantic import BaseModel, Field
 
 
@@ -11,18 +10,14 @@ class ProviderConfig(BaseModel):
     llm_endpoint: str = Field(..., description="LLM API endpoint")
     llm_apikey: str = Field(..., description="API key for LLM access")
     llm_model: str = Field(..., description="LLM model name")
-    system_prompt: str | None = Field(
-        None, description="Custom system prompt for tool calling"
-    )
+    system_prompt: str | None = Field(None, description="Custom system prompt for tool calling")
 
 
 class ProfileSaveRequest(BaseModel):
     """Request body for saving a profile."""
 
     name: str = Field(..., description="Profile name")
-    extraction_prompt: str | None = Field(
-        None, description="Extraction prompt content"
-    )
+    extraction_prompt: str | None = Field(None, description="Extraction prompt content")
     workflow: str | None = Field(None, description="Workflow JSON content or object")
     mappings: str | None = Field(None, description="Mappings JSON content or object")
 
@@ -121,3 +116,26 @@ class ProviderSaveResponse(BaseModel):
 
     success: bool = True
     providers: dict
+
+
+# ---- Gallery models ----
+
+
+class GalleryItem(BaseModel):
+    """Single saved image in the gallery."""
+
+    filename: str
+    size: int
+    created_at: float
+
+
+class GalleryListResponse(BaseModel):
+    """Response containing list of saved images."""
+
+    images: list[GalleryItem]
+
+
+class GallerySaveResponse(BaseModel):
+    """Response from saving an image to the gallery."""
+
+    filename: str

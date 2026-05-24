@@ -41,9 +41,10 @@ export async function analyzeImageAPI(file, profile) {
  * @param {number|null} seed - Seed value (null for random)
  * @param {boolean} upscale - Whether to upscale
  * @param {number} upscaleResolution - Upscale resolution
+ * @param {boolean} save - Whether to save to gallery
  * @returns {Promise<{image: string}>}
  */
-export async function generateImageAPI(prompt, profile, width, height, seed, upscale, upscaleResolution) {
+export async function generateImageAPI(prompt, profile, width, height, seed, upscale, upscaleResolution, save = false) {
     const formData = new FormData();
     formData.append('prompt', prompt);
     formData.append('profile', profile);
@@ -60,6 +61,8 @@ export async function generateImageAPI(prompt, profile, width, height, seed, ups
         formData.append('upscale_switch', true);
         formData.append('upscale_resolution', upscaleResolution);
     }
+    
+    formData.append('save', save);
     
     return apiCall('/api/generate', formData, {}, 'Generation');
 }
@@ -204,4 +207,43 @@ export async function handleApiResponse(response, successMessage, operationName)
         showError(data.detail || `${operationName} failed`);
         return false;
     }
+}
+
+// ============== Gallery API ==============
+
+/**
+ * Load gallery images from backend.
+ * @returns {Promise<Array>} List of gallery items
+ */
+export async function loadGallery() {
+    const response = await fetch('/api/gallery');
+    const data = await response.json();
+    return data?.images || [];
+}
+
+/**
+ * Delete a single image from the gallery.
+ * @param {string} filename - The filename to delete
+ * @returns {Promise<Object>} Response data
+ */
+export async function deleteGalleryImage(filename) {
+    const response = await fetch(`/api/gallery/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.detail || 'Failed to delete image');
+    }
+    return data;
+}
+
+/**
+ * Delete all images from the gallery.
+ * @returns {Promise<Object>} Response data
+ */
+export async function deleteAllGalleryImages() {
+    const response = await fetch('/api/gallery', { method: 'DELETE' });
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.detail || 'Failed to delete all images');
+    }
+    return data;
 }

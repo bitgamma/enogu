@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import time
+from pathlib import Path
 
 import requests
 from fastapi import HTTPException
@@ -20,9 +21,11 @@ class ComfyUIService:
     def __init__(self, endpoint: str) -> None:
         self.endpoint = endpoint
 
-    def execute(self, workflow: dict) -> str:
+    def execute(self, workflow: dict, save_path: str | None = None) -> str:
         """
         Execute ComfyUI workflow and return base64 encoded result image.
+
+        If save_path is provided, the raw image bytes are also written to that file.
         """
         # Queue the workflow
         queue_response = requests.post(
@@ -44,11 +47,13 @@ class ComfyUIService:
                 detail=f"ComfyUI workflow failed: {history_entry['errors']}",
             )
 
-        return self._extract_image(history_entry["outputs"])
+        return self._extract_image(history_entry["outputs"], save_path=save_path)
 
-    async def execute_async(self, workflow: dict) -> str:
+    async def execute_async(self, workflow: dict, save_path: str | None = None) -> str:
         """
         Execute ComfyUI workflow asynchronously and return base64 encoded result image.
+
+        If save_path is provided, the raw image bytes are also written to that file.
         """
         # Queue the workflow
         queue_response = requests.post(
@@ -70,7 +75,7 @@ class ComfyUIService:
                 detail=f"ComfyUI workflow failed: {history_entry['errors']}",
             )
 
-        return self._extract_image(history_entry["outputs"])
+        return self._extract_image(history_entry["outputs"], save_path=save_path)
 
     def _poll_history(self, prompt_id: str) -> dict:
         """Poll ComfyUI history synchronously until workflow completes or fails."""
@@ -112,14 +117,19 @@ class ComfyUIService:
 
         raise HTTPException(status_code=500, detail="ComfyUI workflow timed out")
 
-    def _extract_image(self, outputs: dict) -> str:
-        """Extract and encode the first image from ComfyUI workflow outputs."""
+    def _extract_image(self, outputs: dict, save_path: str | None = None) -> str:
+        """Extract and encode the first image from ComfyUI workflow outputs.
+
+        If save_path is provided, the raw image bytes are also written to that file.
+        """
         for _node_id, node_data in outputs.items():
             if "images" in node_data:
                 image_data = node_data["images"][0]
                 image_bytes = requests.get(
                     f"{self.endpoint}/view?filename={image_data['filename']}&type={image_data['type']}&subfolder={image_data.get('subfolder', '')}"
                 ).content
+                if save_path is not None:
+                    Path(save_path).write_bytes(image_bytes)
                 return base64.b64encode(image_bytes).decode("utf-8")
         raise HTTPException(status_code=500, detail="No image output from ComfyUI")
 

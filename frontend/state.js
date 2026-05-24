@@ -57,7 +57,14 @@ export const DOM = {
     downloadAllBtn: document.getElementById('downloadAllBtn'),
     navGenerate: document.getElementById('navGenerate'),
     navEditor: document.getElementById('navEditor'),
+    navGallery: document.getElementById('navGallery'),
     navConfig: document.getElementById('navConfig'),
+    galleryContainer: document.getElementById('galleryContainer'),
+    galleryGrid: document.getElementById('galleryGrid'),
+    galleryEmpty: document.getElementById('galleryEmpty'),
+    refreshGalleryBtn: document.getElementById('refreshGalleryBtn'),
+    deleteAllGalleryBtn: document.getElementById('deleteAllGalleryBtn'),
+    saveToGalleryBtn: document.getElementById('saveToGalleryBtn'),
 };
 
 // Resolution configuration
@@ -101,6 +108,13 @@ export const state = {
     currentConfig: null,
     availableLLMModels: [],
     modelsLoading: false,
+
+    // Gallery
+    galleryItems: [],
+    downloadedGalleryFiles: new Set(),
+
+    // Last generation parameters (for save-to-gallery re-execution)
+    lastGenerationParams: null,
 };
 
 /**
@@ -116,6 +130,7 @@ export const ACTION_BUTTONS = [
     { btn: DOM.reanalyzeBtn, loading: 'Re-analyzing image with LLM...', complete: 'Analysis complete', progress: '100%' },
     { btn: DOM.regenerateBtn, loading: 'Generating image...', complete: 'Generation complete', progress: '75%' },
     { btn: DOM.upscaleBtn, loading: 'Upscaling image...', complete: 'Upscaling complete', progress: '75%' },
+    { btn: DOM.saveToGalleryBtn, loading: 'Saving to gallery...', complete: 'Saved to gallery', progress: '75%' },
 ];
 
 // Profile operation configurations

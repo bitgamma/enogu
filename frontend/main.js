@@ -1,8 +1,8 @@
 // Main entry point - initialization and event binding
 
 import { DOM, ACTION_BUTTONS, RESOLUTIONS, state, generateRandomSeed } from './state.js';
-import { analyzeImageAPI, generateImageAPI, loadProfiles as fetchProfiles, downloadAllProfiles } from './api.js';
-import { showScreen, switchView, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, populateSelect, setupMobileCameraButton, resetState, createAsyncHandler } from './ui.js';
+import { analyzeImageAPI, generateImageAPI, loadProfiles as fetchProfiles, downloadAllProfiles, loadGallery, deleteGalleryImage, deleteAllGalleryImages } from './api.js';
+import { showScreen, switchView, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, populateSelect, setupMobileCameraButton, resetState, createAsyncHandler, showSuccess, showConfirm } from './ui.js';
 import { addToHistory } from './history.js';
 import { populateEditorProfileList, switchEditorTab, saveCurrentProfile, duplicateCurrentProfile, renameCurrentProfile, deleteCurrentProfile, syncEditorSidebar, loadProfileContentIntoEditor } from './profile-editor.js';
 import { saveConfigView, refreshLLMModels, loadConfigView } from './config-editor.js';
@@ -11,14 +11,14 @@ import { saveConfigView, refreshLLMModels, loadConfigView } from './config-edito
  * Show the generate view.
  */
 export function showGenerateView() {
-    switchView(['editor', 'config'], 'generate');
+    switchView(['editor', 'gallery', 'config'], 'generate');
 }
 
 /**
  * Show the profile editor view.
  */
 export async function showProfileEditor() {
-    switchView(['generate', 'config'], 'editor');
+    switchView(['generate', 'gallery', 'config'], 'editor');
     populateEditorProfileList();
     syncEditorSidebar();
     if (state.currentProfile) {
@@ -30,8 +30,16 @@ export async function showProfileEditor() {
  * Show the config editor view.
  */
 export function showConfigEditor() {
-    switchView(['generate', 'editor'], 'config');
+    switchView(['generate', 'editor', 'gallery'], 'config');
     loadConfigView();
+}
+
+/**
+ * Show the gallery view.
+ */
+export async function showGalleryView() {
+    switchView(['generate', 'editor', 'config'], 'gallery');
+    await loadAndRenderGallery();
 }
 
 /**
@@ -99,9 +107,9 @@ function handleProfileChange(e) {
 }
 
 // Image generation
-async function generateImage(upscale = false) {
+async function generateImage(upscale = false, save = false) {
     DOM.progressFill.style.width = '75%';
-    
+
     let seed;
     if (upscale && state.currentSeed !== null) {
         seed = state.currentSeed;
@@ -109,7 +117,18 @@ async function generateImage(upscale = false) {
         seed = generateRandomSeed();
     }
     state.currentSeed = seed;
-    
+
+    // Store generation parameters for save-to-gallery re-execution
+    state.lastGenerationParams = {
+        prompt: DOM.promptText.value,
+        profile: state.currentProfile,
+        width: state.currentResolution.width,
+        height: state.currentResolution.height,
+        seed: seed,
+        upscale: upscale,
+        upscaleResolution: state.upscaleResolution,
+    };
+
     const data = await generateImageAPI(
         DOM.promptText.value,
         state.currentProfile,
@@ -117,9 +136,10 @@ async function generateImage(upscale = false) {
         state.currentResolution.height,
         seed,
         upscale,
-        state.upscaleResolution
+        state.upscaleResolution,
+        save
     );
-    
+
     const resultImage = DOM.resultImage;
     resultImage.src = data.image;
     resultImage.onload = () => {
@@ -127,6 +147,36 @@ async function generateImage(upscale = false) {
         DOM.regenerateBtn.disabled = false;
         DOM.progressFill.style.width = '100%';
         addToHistory(data.image, DOM.promptText.value);
+    };
+}
+
+// Save to gallery - re-execute generation with original parameters and same seed
+async function saveToGallery() {
+    if (!state.lastGenerationParams) {
+        showError('No image to save');
+        return;
+    }
+    const params = state.lastGenerationParams;
+    DOM.progressFill.style.width = '75%';
+
+    const data = await generateImageAPI(
+        params.prompt,
+        params.profile,
+        params.width,
+        params.height,
+        params.seed,
+        params.upscale,
+        params.upscaleResolution,
+        true  // save to gallery
+    );
+
+    const resultImage = DOM.resultImage;
+    resultImage.src = data.image;
+    resultImage.onload = () => {
+        resultImage.style.display = 'block';
+        DOM.progressFill.style.width = '100%';
+        addToHistory(data.image, params.prompt);
+        showSuccess('Image saved to gallery');
     };
 }
 
@@ -166,11 +216,123 @@ async function analyzeImage() {
     DOM.processingText.textContent = 'Analyzing image with LLM...';
     DOM.progressFill.style.width = '50%';
     DOM.stepIndicator2.classList.add('active');
-    
+
     const data = await analyzeImageAPI(state.selectedFile, state.currentProfile);
-    
+
     DOM.promptText.value = data.prompt;
     DOM.processingText.textContent = 'Generating image...';
+}
+
+// ============== Gallery Functions ==============
+
+/**
+ * Load gallery data from backend and render it.
+ */
+async function loadAndRenderGallery() {
+    try {
+        state.galleryItems = await loadGallery();
+        renderGallery();
+    } catch (err) {
+        console.error('Failed to load gallery:', err);
+        showError('Failed to load gallery');
+    }
+}
+
+/**
+ * Render gallery grid from state.galleryItems.
+ */
+function renderGallery() {
+    const grid = DOM.galleryGrid;
+    const empty = DOM.galleryEmpty;
+    grid.innerHTML = '';
+
+    if (state.galleryItems.length === 0) {
+        grid.style.display = 'none';
+        empty.style.display = 'block';
+        return;
+    }
+
+    grid.style.display = 'grid';
+    empty.style.display = 'none';
+
+    state.galleryItems.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'gallery-item';
+        if (state.downloadedGalleryFiles.has(item.filename)) {
+            card.classList.add('gallery-item-downloaded');
+        }
+
+        const img = document.createElement('img');
+        img.src = `/api/gallery/${encodeURIComponent(item.filename)}`;
+        img.alt = item.filename;
+        img.loading = 'lazy';
+
+        const info = document.createElement('div');
+        info.className = 'gallery-item-info';
+
+        const name = document.createElement('span');
+        name.className = 'gallery-item-name';
+        name.textContent = item.filename;
+
+        const meta = document.createElement('span');
+        meta.className = 'gallery-item-meta';
+        const date = new Date(item.created_at * 1000);
+        meta.textContent = `${formatFileSize(item.size)} · ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+
+        info.appendChild(name);
+        info.appendChild(meta);
+
+        const actions = document.createElement('div');
+        actions.className = 'gallery-item-actions';
+
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'btn-icon';
+        downloadBtn.title = 'Download';
+        downloadBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+        downloadBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.downloadedGalleryFiles.add(item.filename);
+            card.classList.add('gallery-item-downloaded');
+            const link = document.createElement('a');
+            link.href = `/api/gallery/${encodeURIComponent(item.filename)}`;
+            link.download = item.filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn-icon btn-icon-danger';
+        deleteBtn.title = 'Delete';
+        deleteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+        deleteBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+                await deleteGalleryImage(item.filename);
+                showSuccess('Image deleted');
+                await loadAndRenderGallery();
+            } catch (err) {
+                showError(err.message || 'Failed to delete image');
+            }
+        });
+
+        actions.appendChild(downloadBtn);
+        actions.appendChild(deleteBtn);
+
+        card.appendChild(img);
+        card.appendChild(info);
+        card.appendChild(actions);
+        grid.appendChild(card);
+    });
+}
+
+/**
+ * Format file size in human-readable form.
+ */
+function formatFileSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // ============== Event Binding ==============
@@ -189,10 +351,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Navigation handlers
     DOM.navGenerate?.addEventListener('click', showGenerateView);
     DOM.navEditor?.addEventListener('click', showProfileEditor);
+    DOM.navGallery?.addEventListener('click', showGalleryView);
     DOM.navConfig?.addEventListener('click', showConfigEditor);
     DOM.refreshModelsBtn?.addEventListener('click', refreshLLMModels);
     DOM.saveConfigBtn?.addEventListener('click', saveConfigView);
     DOM.downloadAllBtn?.addEventListener('click', downloadAllProfiles);
+
+    // Gallery handlers
+    DOM.refreshGalleryBtn?.addEventListener('click', loadAndRenderGallery);
+    DOM.deleteAllGalleryBtn?.addEventListener('click', async () => {
+        if (state.galleryItems.length === 0) return;
+        const confirmed = await showConfirm('Are you sure you want to delete all saved images? This action cannot be undone.');
+        if (!confirmed) return;
+        try {
+            await deleteAllGalleryImages();
+            showSuccess('All images deleted');
+            await loadAndRenderGallery();
+        } catch (err) {
+            showError(err.message || 'Failed to delete all images');
+        }
+    });
     
     // Editor tab handlers
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -248,8 +426,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = await analyzeImageAPI(state.selectedFile, state.currentProfile); 
         DOM.promptText.value = data.prompt; 
     };
-    ACTION_BUTTONS[1].operation = () => generateImage(false);
-    ACTION_BUTTONS[2].operation = () => generateImage(true);
+    ACTION_BUTTONS[1].operation = () => generateImage(false, false);
+    ACTION_BUTTONS[2].operation = () => generateImage(true, true);
+    ACTION_BUTTONS[3].operation = saveToGallery;
     
     ACTION_BUTTONS.forEach(({ btn, loading, complete, progress, operation, error }) => {
         btn.addEventListener('click', createAsyncHandler(btn, loading, complete, progress, operation, error));

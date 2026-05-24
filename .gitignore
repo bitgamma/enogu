@@ -1,6 +1,6 @@
 profiles
+output
 config.json
 __pycache__
 *.egg-info
-.kilo
 uv.lock

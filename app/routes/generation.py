@@ -2,10 +2,11 @@
 
 import copy
 import io
+import time
 
 from fastapi import APIRouter, File, Form, UploadFile
 
-from app.config import PROFILES_DIR
+from app.config import OUTPUT_DIR, PROFILES_DIR
 from app.models import AnalyzeResponse, GenerateResponse
 from app.services.comfyui import create_comfyui_service
 from app.services.llm import create_llm_service
@@ -172,10 +173,12 @@ async def generate_image(
     seed: int = Form(-1),
     upscale_switch: bool = Form(False),
     upscale_resolution: int = Form(1024),
+    save: bool = Form(False),
 ) -> GenerateResponse:
     """
     Generate image from prompt using ComfyUI.
     Uses the specified profile configuration and custom resolution.
+    Optionally saves the image to the output folder.
     """
     profile_config = get_cached_profile(profile)
     prompt_text = prompt
@@ -195,7 +198,15 @@ async def generate_image(
         upscale_resolution,
     )
 
+    # Determine save path if requested
+    save_path = None
+    if save:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        timestamp = int(time.time() * 1000)
+        filename = f"{profile_config['name']}-{timestamp}.png"
+        save_path = str(OUTPUT_DIR / filename)
+
     comfyui_service = create_comfyui_service()
-    image_base64 = await comfyui_service.execute_async(workflow)
+    image_base64 = await comfyui_service.execute_async(workflow, save_path=save_path)
 
     return GenerateResponse(image=f"data:image/png;base64,{image_base64}")
