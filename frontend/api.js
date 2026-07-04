@@ -1,6 +1,7 @@
 // API call functions
 
 import { showSuccess, showError } from './ui.js';
+import { generateRandomSeed } from './state.js';
 
 /**
  * Generic API call helper with standardized error handling.
@@ -36,6 +37,7 @@ export async function analyzeImageAPI(file, profile) {
  * Generate an image via the /api/generate endpoint.
  * @param {string} prompt - The generation prompt
  * @param {string} profile - The profile name
+ * @param {string} workflow - The workflow name
  * @param {number} width - Image width
  * @param {number} height - Image height
  * @param {number|null} seed - Seed value (null for random)
@@ -44,26 +46,27 @@ export async function analyzeImageAPI(file, profile) {
  * @param {boolean} save - Whether to save to gallery
  * @returns {Promise<{image: string}>}
  */
-export async function generateImageAPI(prompt, profile, width, height, seed, upscale, upscaleResolution, save = false) {
+export async function generateImageAPI(prompt, profile, workflow, width, height, seed, upscale, upscaleResolution, save = false) {
     const formData = new FormData();
     formData.append('prompt', prompt);
     formData.append('profile', profile);
+    formData.append('workflow', workflow);
     formData.append('width', width);
     formData.append('height', height);
-    
+
     if (seed !== null) {
         formData.append('seed', seed);
     } else {
         formData.append('seed', generateRandomSeed());
     }
-    
+
     if (upscale) {
         formData.append('upscale_switch', true);
         formData.append('upscale_resolution', upscaleResolution);
     }
-    
+
     formData.append('save', save);
-    
+
     return apiCall('/api/generate', formData, {}, 'Generation');
 }
 
@@ -75,6 +78,16 @@ export async function loadProfiles() {
     const response = await fetch('/api/profiles');
     const data = await response.json();
     return data?.profiles || [];
+}
+
+/**
+ * Load available workflows from backend.
+ * @returns {Promise<Array>} List of workflows
+ */
+export async function loadWorkflows() {
+    const response = await fetch('/api/workflows');
+    const data = await response.json();
+    return data?.workflows || [];
 }
 
 /**
@@ -113,6 +126,8 @@ export async function refreshLLMModels() {
     const data = await response.json();
     return data.models || [];
 }
+
+// ============== Profile API ==============
 
 /**
  * Load profile content for editing.
@@ -171,9 +186,7 @@ export async function renameProfile(oldName, newName) {
  * @returns {Promise<Response>} Fetch response
  */
 export async function deleteProfile(name) {
-    return fetch(`/api/profile-editor/profile/${encodeURIComponent(name)}`, {
-        method: 'DELETE'
-    });
+    return fetch(`/api/profile-editor/profile/${encodeURIComponent(name)}`, { method: 'DELETE' });
 }
 
 /**
@@ -191,8 +204,85 @@ export function downloadAllProfiles() {
     window.location.href = '/api/profile-editor/download-all';
 }
 
+// ============== Workflow API ==============
+
 /**
- * Handle API response for profile operations.
+ * Load workflow content for editing.
+ * @param {string} workflowName - Workflow name
+ * @returns {Promise<Object>} Workflow content
+ */
+export async function loadWorkflowContent(workflowName) {
+    const response = await fetch(`/api/workflow-editor/workflow/${encodeURIComponent(workflowName)}`);
+    return response.json();
+}
+
+/**
+ * Save a workflow.
+ * @param {Object} payload - Workflow data
+ * @returns {Promise<Response>} Fetch response
+ */
+export async function saveWorkflow(payload) {
+    return fetch('/api/workflow-editor/workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+}
+
+/**
+ * Duplicate a workflow.
+ * @param {string} sourceName - Source workflow name
+ * @param {string} newName - New workflow name
+ * @returns {Promise<Response>} Fetch response
+ */
+export async function duplicateWorkflow(sourceName, newName) {
+    return fetch('/api/workflow-editor/workflow/duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_name: sourceName, new_name: newName })
+    });
+}
+
+/**
+ * Rename a workflow.
+ * @param {string} oldName - Old workflow name
+ * @param {string} newName - New workflow name
+ * @returns {Promise<Response>} Fetch response
+ */
+export async function renameWorkflow(oldName, newName) {
+    return fetch('/api/workflow-editor/workflow/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_name: oldName, new_name: newName })
+    });
+}
+
+/**
+ * Delete a workflow.
+ * @param {string} name - Workflow name
+ * @returns {Promise<Response>} Fetch response
+ */
+export async function deleteWorkflow(name) {
+    return fetch(`/api/workflow-editor/workflow/${encodeURIComponent(name)}`, { method: 'DELETE' });
+}
+
+/**
+ * Download a specific workflow.
+ * @param {string} workflowName - Workflow name
+ */
+export function downloadWorkflow(workflowName) {
+    window.location.href = `/api/workflow-editor/download/${encodeURIComponent(workflowName)}`;
+}
+
+/**
+ * Download all workflows.
+ */
+export function downloadAllWorkflows() {
+    window.location.href = '/api/workflow-editor/download-all';
+}
+
+/**
+ * Handle API response for editor operations.
  * @param {Response} response - The fetch response
  * @param {string} successMessage - Message to show on success
  * @param {string} operationName - Name of the operation for error messages

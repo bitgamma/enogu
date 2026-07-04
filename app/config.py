@@ -8,6 +8,7 @@ from typing import Any
 BASE_DIR = Path(__file__).parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 PROFILES_DIR = BASE_DIR / "profiles"
+WORKFLOWS_DIR = BASE_DIR / "workflows"
 OUTPUT_DIR = BASE_DIR / "output"
 CONFIG_FILE = BASE_DIR / "config.json"
 

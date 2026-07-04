@@ -10,7 +10,7 @@ import { showPrompt, showConfirm, showError } from './ui.js';
 export function populateEditorProfileList() {
     const profileList = DOM.profileList;
     profileList.innerHTML = '';
-    
+
     if (state.availableProfiles.length > 0) {
         state.editorOriginalNames.clear();
         state.availableProfiles.forEach(profile => {
@@ -43,14 +43,13 @@ export function syncEditorSidebar() {
     document.querySelectorAll('.profile-item').forEach(item => {
         item.classList.toggle('selected', item.dataset.name === profileName);
     });
-    
+
     if (profileName) {
         DOM.editorProfileName.textContent = profileName;
         DOM.saveProfileBtn.disabled = false;
         DOM.duplicateProfileBtn.disabled = false;
         DOM.renameProfileBtn.disabled = false;
         DOM.deleteProfileBtn.disabled = false;
-        DOM.editorTabs.style.display = 'flex';
         DOM.editorContent.style.display = 'block';
         DOM.editorPlaceholder.style.display = 'none';
     } else {
@@ -59,7 +58,6 @@ export function syncEditorSidebar() {
         DOM.duplicateProfileBtn.disabled = true;
         DOM.renameProfileBtn.disabled = true;
         DOM.deleteProfileBtn.disabled = true;
-        DOM.editorTabs.style.display = 'none';
         DOM.editorContent.style.display = 'none';
         DOM.editorPlaceholder.style.display = 'block';
     }
@@ -70,18 +68,13 @@ export function syncEditorSidebar() {
  */
 export async function loadProfileContentIntoEditor(profileName) {
     if (!profileName) return;
-    
+
     try {
         const data = await loadProfileContent(profileName);
-        
+
         state.editorProfileData.extraction_prompt = data.extraction_prompt || '';
-        state.editorProfileData.workflow = data.workflow || '{}';
-        state.editorProfileData.mappings = data.mappings || '{}';
-        
+
         DOM.extractionPromptEditor.value = state.editorProfileData.extraction_prompt;
-        DOM.workflowEditor.value = state.editorProfileData.workflow;
-        DOM.mappingsEditor.value = state.editorProfileData.mappings;
-        switchEditorTab('extraction_prompt');
     } catch (err) {
         console.error('Failed to load profile content:', err);
         showError('Failed to load profile content');
@@ -95,34 +88,9 @@ export async function loadProfileContentIntoEditor(profileName) {
 export async function selectProfileForEdit(profileName) {
     state.currentProfile = profileName;
     DOM.profileSelect.value = profileName;
-    
+
     syncEditorSidebar();
     await loadProfileContentIntoEditor(profileName);
-}
-
-/**
- * Switch editor tab.
- * @param {string} tabName - Tab name to switch to
- */
-export function switchEditorTab(tabName) {
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === tabName);
-    });
-    
-    const tabMap = {
-        extraction_prompt: 'extractionPromptEditor',
-        workflow: 'workflowEditor',
-        mappings: 'mappingsEditor'
-    };
-    
-    document.querySelectorAll('.editor-textarea').forEach(el => {
-        el.style.display = 'none';
-    });
-    
-    const domKey = tabMap[tabName];
-    if (domKey && DOM[domKey]) {
-        DOM[domKey].style.display = 'block';
-    }
 }
 
 /**
@@ -130,15 +98,15 @@ export function switchEditorTab(tabName) {
  * @param {string} operationKey - Operation key (save, duplicate, rename, delete)
  */
 export async function executeProfileOperation(operationKey) {
-   if (!state.currentProfile) return;
-    
+    if (!state.currentProfile) return;
+
     const op = PROFILE_OPERATIONS[operationKey];
-    
+
     // Handle confirmation dialog
     if (op.confirm && !(await showConfirm(op.confirm(state.currentProfile)))) {
         return;
     }
-    
+
     // Handle name prompt
     let newName = null;
     if (op.prompt) {
@@ -149,16 +117,16 @@ export async function executeProfileOperation(operationKey) {
             return;
         }
     }
-    
+
     const payload = op.buildPayload(state.currentProfile, newName);
     const endpoint = typeof op.endpoint === 'function' ? op.endpoint(state.currentProfile) : op.endpoint;
-    
+
     let response;
     switch (op.method) {
         case 'POST':
             response = await fetch(endpoint, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
             break;
@@ -166,7 +134,7 @@ export async function executeProfileOperation(operationKey) {
             response = await fetch(endpoint, { method: 'DELETE' });
             break;
     }
-    
+
     const success = await handleApiResponse(response, op.successMsg, op.successMsg);
     if (success && op.onsuccess) {
         await op.onsuccess(newName);

@@ -11,7 +11,7 @@ from app.utils.exceptions import (
     ProfileAlreadyExistsError,
     ProfileNotFoundError,
 )
-from app.utils.files import ProfileManager, ensure_file_exists, read_file_content
+from app.utils.files import ProfileManager, WorkflowManager, ensure_file_exists, read_file_content
 from app.utils.image import encode_image_to_base64, resize_image_for_llm
 from app.utils.validation import (
     PARAM_HANDLERS,
@@ -38,6 +38,7 @@ __all__ = [
     "ProfileAlreadyExistsError",
     "ProfileManager",
     "ProfileNotFoundError",
+    "WorkflowManager",
     "apply_mappings",
     "build_llm_headers",
     "encode_image_to_base64",

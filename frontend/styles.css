@@ -153,6 +153,16 @@ h1 {
     margin-bottom: 20px;
 }
 
+.selection-row {
+    display: flex;
+    gap: 20px;
+}
+
+.selection-row .profile-section {
+    flex: 1;
+    margin-bottom: 0;
+}
+
 /* Base input/select styles */
 .input,
 .select,
@@ -406,6 +416,19 @@ label {
     flex-direction: column;
     gap: 8px;
     min-width: 0;
+}
+
+.regenerate-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.btn.small {
+    flex: none;
+    min-width: auto;
+    padding: 12px 14px;
+    font-size: 13px;
+    white-space: nowrap;
 }
 
 .upscale-btn {
@@ -735,6 +758,60 @@ label {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.workflow-name {
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.workflow-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    margin-bottom: 4px;
+    border-radius: 0;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.workflow-item:hover {
+    background: #e5e7eb;
+}
+
+.workflow-item.selected {
+    background: #1a1a1a;
+    color: white;
+}
+
+.workflow-item.selected .workflow-item-btn:hover {
+    background: #d1d5db;
+    color: black;
+    border-color: #d1d5db;
+}
+
+.workflow-item-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid #d1d5db;
+    background: white;
+    border-radius: 0;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.workflow-item-btn:hover {
+    background: #1a1a1a;
+    color: white;
+    border-color: #1a1a1a;
 }
 
 .profile-item-btn {

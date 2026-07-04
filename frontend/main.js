@@ -1,24 +1,25 @@
 // Main entry point - initialization and event binding
 
 import { DOM, ACTION_BUTTONS, RESOLUTIONS, state, generateRandomSeed } from './state.js';
-import { analyzeImageAPI, generateImageAPI, loadProfiles as fetchProfiles, downloadAllProfiles, loadGallery, deleteGalleryImage, deleteAllGalleryImages } from './api.js';
+import { analyzeImageAPI, generateImageAPI, loadProfiles as fetchProfiles, loadWorkflows as fetchWorkflows, downloadAllProfiles, downloadAllWorkflows, loadGallery, deleteGalleryImage, deleteAllGalleryImages } from './api.js';
 import { showScreen, switchView, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, populateSelect, setupMobileCameraButton, resetState, createAsyncHandler, showSuccess, showConfirm } from './ui.js';
 import { addToHistory } from './history.js';
-import { populateEditorProfileList, switchEditorTab, saveCurrentProfile, duplicateCurrentProfile, renameCurrentProfile, deleteCurrentProfile, syncEditorSidebar, loadProfileContentIntoEditor } from './profile-editor.js';
+import { populateEditorProfileList, syncEditorSidebar, loadProfileContentIntoEditor, saveCurrentProfile, duplicateCurrentProfile, renameCurrentProfile, deleteCurrentProfile } from './profile-editor.js';
+import { populateEditorWorkflowList, syncWorkflowEditorSidebar, loadWorkflowContentIntoEditor, saveCurrentWorkflow, duplicateCurrentWorkflow, renameCurrentWorkflow, deleteCurrentWorkflow, selectWorkflowForEdit } from './workflow-editor.js';
 import { saveConfigView, refreshLLMModels, loadConfigView } from './config-editor.js';
 
 /**
  * Show the generate view.
  */
 export function showGenerateView() {
-    switchView(['editor', 'gallery', 'config'], 'generate');
+    switchView(['profiles', 'workflows', 'gallery', 'config'], 'generate');
 }
 
 /**
  * Show the profile editor view.
  */
 export async function showProfileEditor() {
-    switchView(['generate', 'gallery', 'config'], 'editor');
+    switchView(['generate', 'workflows', 'gallery', 'config'], 'profiles');
     populateEditorProfileList();
     syncEditorSidebar();
     if (state.currentProfile) {
@@ -27,10 +28,22 @@ export async function showProfileEditor() {
 }
 
 /**
+ * Show the workflow editor view.
+ */
+export async function showWorkflowEditor() {
+    switchView(['generate', 'profiles', 'gallery', 'config'], 'workflows');
+    populateEditorWorkflowList();
+    syncWorkflowEditorSidebar();
+    if (state.currentWorkflow) {
+        await loadWorkflowContentIntoEditor(state.currentWorkflow);
+    }
+}
+
+/**
  * Show the config editor view.
  */
 export function showConfigEditor() {
-    switchView(['generate', 'editor', 'gallery'], 'config');
+    switchView(['generate', 'profiles', 'workflows', 'gallery'], 'config');
     loadConfigView();
 }
 
@@ -38,7 +51,7 @@ export function showConfigEditor() {
  * Show the gallery view.
  */
 export async function showGalleryView() {
-    switchView(['generate', 'editor', 'config'], 'gallery');
+    switchView(['generate', 'profiles', 'workflows', 'config'], 'gallery');
     await loadAndRenderGallery();
 }
 
@@ -50,7 +63,7 @@ function handleFileUpload(file) {
         showError('Please select an image file (PNG or JPG)');
         return;
     }
-    
+
     state.selectedFile = file;
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -67,7 +80,7 @@ function handleFileUpload(file) {
 async function loadProfilesAndUI() {
     try {
         const profiles = await fetchProfiles();
-        
+
         if (profiles.length > 0) {
             state.availableProfiles = [...profiles];
             state.profilesLoaded = true;
@@ -77,6 +90,25 @@ async function loadProfilesAndUI() {
     } catch (err) {
         console.error('Failed to load profiles:', err);
         showError('Failed to load profiles. Please refresh the page.');
+    }
+}
+
+/**
+ * Load workflows from backend and update UI.
+ */
+async function loadWorkflowsAndUI() {
+    try {
+        const workflows = await fetchWorkflows();
+
+        if (workflows.length > 0) {
+            state.availableWorkflows = [...workflows];
+            state.workflowsLoaded = true;
+        } else {
+            showError('No workflows available');
+        }
+    } catch (err) {
+        console.error('Failed to load workflows:', err);
+        showError('Failed to load workflows. Please refresh the page.');
     }
 }
 
@@ -91,6 +123,16 @@ function populateProfileSelects() {
 }
 
 /**
+ * Populate all workflow selects from loaded data.
+ */
+function populateWorkflowSelects() {
+    if (state.availableWorkflows.length > 0) {
+        populateSelect(DOM.workflowSelect, state.availableWorkflows, (name) => { state.currentWorkflow = name; });
+        populateSelect(DOM.workflowSelectResult, state.availableWorkflows);
+    }
+}
+
+/**
  * Refresh profiles and update all UIs.
  */
 window.refreshProfilesAndUI = async function(extraCallback = null) {
@@ -100,15 +142,36 @@ window.refreshProfilesAndUI = async function(extraCallback = null) {
     if (extraCallback) extraCallback();
 };
 
+/**
+ * Refresh workflows and update all UIs.
+ */
+window.refreshWorkflowsAndUI = async function(extraCallback = null) {
+    await loadWorkflowsAndUI();
+    populateWorkflowSelects();
+    populateEditorWorkflowList();
+    if (extraCallback) extraCallback();
+};
+
 // Profile selection change handler
 function handleProfileChange(e) {
     state.currentProfile = e.target.value;
     syncEditorSidebar();
 }
 
+// Workflow selection change handler
+function handleWorkflowChange(e) {
+    state.currentWorkflow = e.target.value;
+    syncWorkflowEditorSidebar();
+}
+
 // Image generation
-async function generateImage(upscale = false, save = false) {
+async function generateImage(upscale = false, save = false, resolutionMultiplier = 1) {
     DOM.progressFill.style.width = '75%';
+
+    if (!state.currentWorkflow) {
+        showError('Please select a workflow first');
+        return;
+    }
 
     let seed;
     if (upscale && state.currentSeed !== null) {
@@ -118,12 +181,16 @@ async function generateImage(upscale = false, save = false) {
     }
     state.currentSeed = seed;
 
+    const width = Math.round(state.currentResolution.width * resolutionMultiplier);
+    const height = Math.round(state.currentResolution.height * resolutionMultiplier);
+
     // Store generation parameters for save-to-gallery re-execution
     state.lastGenerationParams = {
         prompt: DOM.promptText.value,
         profile: state.currentProfile,
-        width: state.currentResolution.width,
-        height: state.currentResolution.height,
+        workflow: state.currentWorkflow,
+        width: width,
+        height: height,
         seed: seed,
         upscale: upscale,
         upscaleResolution: state.upscaleResolution,
@@ -132,8 +199,9 @@ async function generateImage(upscale = false, save = false) {
     const data = await generateImageAPI(
         DOM.promptText.value,
         state.currentProfile,
-        state.currentResolution.width,
-        state.currentResolution.height,
+        state.currentWorkflow,
+        width,
+        height,
         seed,
         upscale,
         state.upscaleResolution,
@@ -162,6 +230,7 @@ async function saveToGallery() {
     const data = await generateImageAPI(
         params.prompt,
         params.profile,
+        params.workflow,
         params.width,
         params.height,
         params.seed,
@@ -186,17 +255,22 @@ async function startProcessing() {
         showError('Please select a profile first');
         return;
     }
-    
+
+    if (!state.currentWorkflow) {
+        showError('Please select a workflow first');
+        return;
+    }
+
     if (!state.selectedFile) {
         showError('Please upload an image first');
         return;
     }
-    
+
     state.isProcessing = true;
     showScreen(2);
     resetProgress();
     hideErrorActions();
-    
+
     try {
         await analyzeImage();
         await generateImage();
@@ -340,22 +414,31 @@ function formatFileSize(bytes) {
 document.addEventListener('DOMContentLoaded', async () => {
     // Load initial data
     await loadProfilesAndUI();
+    await loadWorkflowsAndUI();
     populateProfileSelects();
+    populateWorkflowSelects();
     populateEditorProfileList();
+    populateEditorWorkflowList();
     setupMobileCameraButton();
-    
+
     // Profile select handlers
     DOM.profileSelect.addEventListener('change', handleProfileChange);
     DOM.profileSelectResult.addEventListener('change', handleProfileChange);
-    
+
+    // Workflow select handlers
+    DOM.workflowSelect.addEventListener('change', handleWorkflowChange);
+    DOM.workflowSelectResult.addEventListener('change', handleWorkflowChange);
+
     // Navigation handlers
     DOM.navGenerate?.addEventListener('click', showGenerateView);
-    DOM.navEditor?.addEventListener('click', showProfileEditor);
+    DOM.navProfiles?.addEventListener('click', showProfileEditor);
+    DOM.navWorkflows?.addEventListener('click', showWorkflowEditor);
     DOM.navGallery?.addEventListener('click', showGalleryView);
     DOM.navConfig?.addEventListener('click', showConfigEditor);
     DOM.refreshModelsBtn?.addEventListener('click', refreshLLMModels);
     DOM.saveConfigBtn?.addEventListener('click', saveConfigView);
-    DOM.downloadAllBtn?.addEventListener('click', downloadAllProfiles);
+    DOM.downloadAllProfilesBtn?.addEventListener('click', downloadAllProfiles);
+    DOM.downloadAllWorkflowsBtn?.addEventListener('click', downloadAllWorkflows);
 
     // Gallery handlers
     DOM.refreshGalleryBtn?.addEventListener('click', loadAndRenderGallery);
@@ -371,32 +454,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             showError(err.message || 'Failed to delete all images');
         }
     });
-    
-    // Editor tab handlers
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => switchEditorTab(btn.dataset.tab));
+
+    // Profile editor tab handlers (none needed - single textarea)
+
+    // Workflow editor tab handlers
+    document.querySelectorAll('#workflowEditorTabs .tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            import('./workflow-editor.js').then(mod => mod.switchWorkflowEditorTab(btn.dataset.tab));
+        });
     });
-    
+
     // Profile editor handlers
     DOM.saveProfileBtn.addEventListener('click', saveCurrentProfile);
     DOM.duplicateProfileBtn.addEventListener('click', duplicateCurrentProfile);
     DOM.renameProfileBtn.addEventListener('click', renameCurrentProfile);
     DOM.deleteProfileBtn.addEventListener('click', deleteCurrentProfile);
-    
+
+    // Workflow editor handlers
+    DOM.saveWorkflowBtn.addEventListener('click', saveCurrentWorkflow);
+    DOM.duplicateWorkflowBtn.addEventListener('click', duplicateCurrentWorkflow);
+    DOM.renameWorkflowBtn.addEventListener('click', renameCurrentWorkflow);
+    DOM.deleteWorkflowBtn.addEventListener('click', deleteCurrentWorkflow);
+
     // Upload handlers
     DOM.uploadSection.addEventListener('click', () => DOM.fileInput.click());
-    
+
     // Drag and drop
     const uploadSection = DOM.uploadSection;
     uploadSection.addEventListener('dragover', (e) => {
         e.preventDefault();
         uploadSection.classList.add('dragover');
     });
-    
+
     uploadSection.addEventListener('dragleave', () => {
         uploadSection.classList.remove('dragover');
     });
-    
+
     uploadSection.addEventListener('drop', (e) => {
         e.preventDefault();
         uploadSection.classList.remove('dragover');
@@ -404,7 +497,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             handleFileUpload(e.dataTransfer.files[0]);
         }
     });
-    
+
     // File input handlers
     DOM.fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
@@ -416,38 +509,40 @@ document.addEventListener('DOMContentLoaded', async () => {
             handleFileUpload(e.target.files[0]);
         }
     });
-    
+
     // Camera button
     DOM.cameraBtn.addEventListener('click', () => DOM.cameraInput.click());
-    
+
     // Action buttons - attach operation handlers after DOM is ready
-    ACTION_BUTTONS[0].operation = async () => { 
-        DOM.stepIndicator2.classList.add('active'); 
-        const data = await analyzeImageAPI(state.selectedFile, state.currentProfile); 
-        DOM.promptText.value = data.prompt; 
+    ACTION_BUTTONS[0].operation = async () => {
+        DOM.stepIndicator2.classList.add('active');
+        const data = await analyzeImageAPI(state.selectedFile, state.currentProfile);
+        DOM.promptText.value = data.prompt;
     };
-    ACTION_BUTTONS[1].operation = () => generateImage(false, false);
-    ACTION_BUTTONS[2].operation = () => generateImage(true, true);
-    ACTION_BUTTONS[3].operation = saveToGallery;
-    
+    ACTION_BUTTONS[1].operation = () => generateImage(false, false, 1);
+    ACTION_BUTTONS[2].operation = () => generateImage(false, false, 1.5);
+    ACTION_BUTTONS[3].operation = () => generateImage(false, false, 2);
+    ACTION_BUTTONS[4].operation = () => generateImage(true, true);
+    ACTION_BUTTONS[5].operation = saveToGallery;
+
     ACTION_BUTTONS.forEach(({ btn, loading, complete, progress, operation, error }) => {
         btn.addEventListener('click', createAsyncHandler(btn, loading, complete, progress, operation, error));
     });
-    
+
     // Control handlers
     DOM.upscaleResolutionSelect.addEventListener('change', (e) => {
         state.upscaleResolution = parseInt(e.target.value, 10);
     });
-    
+
     DOM.newBtn.addEventListener('click', () => {
         resetState();
         showScreen(1);
     });
-    
+
     DOM.resolutionSelect.addEventListener('change', (e) => {
         state.currentResolution = RESOLUTIONS[e.target.value] || { width: 768, height: 1024 };
     });
-    
+
     DOM.downloadBtn.addEventListener('click', () => {
         if (DOM.resultImage.src) {
             const link = document.createElement('a');
@@ -458,7 +553,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.body.removeChild(link);
         }
     });
-    
+
     // Notification handlers
     DOM.errorClose.addEventListener('click', hideNotification);
     document.addEventListener('click', (e) => {
@@ -466,14 +561,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             hideNotification();
         }
     });
-    
+
     // Error action handlers
     DOM.tryAgainBtn.addEventListener('click', () => {
         hideErrorActions();
         hideNotification();
         startProcessing();
     });
-    
+
     DOM.cancelBtn.addEventListener('click', () => {
         hideErrorActions();
         hideNotification();

@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import FRONTEND_DIR, get_server_config
-from app.routes import config_router, gallery_router, generation_router, profiles_router
+from app.routes import config_router, gallery_router, generation_router, profiles_router, workflows_router
 from app.utils import AppError
 
 app = FastAPI(title="Image Generation Webapp")
@@ -63,6 +63,7 @@ async def index() -> HTMLResponse:
 app.include_router(generation_router)
 app.include_router(gallery_router)
 app.include_router(profiles_router)
+app.include_router(workflows_router)
 app.include_router(config_router)
 
 
@@ -74,6 +75,16 @@ async def list_profiles() -> dict:
 
     manager = ProfileManager(PROFILES_DIR)
     return {"profiles": manager.list_profiles()}
+
+
+@app.get("/api/workflows")
+async def list_workflows() -> dict:
+    """List all available workflows."""
+    from app.config import WORKFLOWS_DIR
+    from app.utils import WorkflowManager
+
+    manager = WorkflowManager(WORKFLOWS_DIR)
+    return {"workflows": manager.list_workflows()}
 
 
 if __name__ == "__main__":

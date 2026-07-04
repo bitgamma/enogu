@@ -1,9 +1,6 @@
 """Profile editor routes."""
 
-import json
-
 from fastapi import APIRouter
-from fastapi.responses import FileResponse
 
 from app.config import PROFILES_DIR
 from app.models import (
@@ -19,7 +16,6 @@ from app.models import (
 from app.routes.generation import invalidate_profile_cache
 from app.utils import (
     ProfileManager,
-    validate_json,
     validate_profile_name_or_raise,
 )
 
@@ -30,13 +26,11 @@ profile_manager = ProfileManager(PROFILES_DIR)
 
 @router.get("/profile/{profile_name}")
 async def get_profile(profile_name: str) -> ProfileContent:
-    """Get full profile content (all 3 files)."""
+    """Get full profile content (extraction_prompt.txt only)."""
     files = profile_manager.get_content(profile_name)
     return ProfileContent(
         name=profile_name,
         extraction_prompt=files.get("extraction_prompt.txt"),
-        workflow=files.get("workflow.json"),
-        mappings=files.get("mappings.json"),
     )
 
 
@@ -45,14 +39,8 @@ async def save_profile(request: ProfileSaveRequest) -> ProfileSaveResponse:
     """Save/update a profile (create or overwrite)."""
     validate_profile_name_or_raise(request.name, "profile name")
 
-    # Validate and parse JSON files if provided
-    workflow = validate_json(request.workflow, "workflow")
-    mappings = validate_json(request.mappings, "mappings")
-
     files = {
         "extraction_prompt.txt": request.extraction_prompt,
-        "workflow.json": workflow if isinstance(workflow, str) else json.dumps(workflow, indent=4),
-        "mappings.json": mappings if isinstance(mappings, str) else json.dumps(mappings, indent=4),
     }
 
     profile_manager.save_files(request.name, files)
@@ -102,8 +90,10 @@ async def rename_profile(request: ProfileRenameRequest) -> ProfileRenameResponse
 
 
 @router.get("/download/{profile_name}")
-async def download_profile(profile_name: str) -> FileResponse:
+async def download_profile(profile_name: str):
     """Download a single profile as ZIP."""
+    from fastapi.responses import FileResponse
+
     profile_manager.ensure_exists(profile_name)
     zip_path = profile_manager.create_zip(profile_name)
     return FileResponse(
@@ -114,8 +104,10 @@ async def download_profile(profile_name: str) -> FileResponse:
 
 
 @router.get("/download-all")
-async def download_all_profiles() -> FileResponse:
+async def download_all_profiles():
     """Download all profiles as ZIP."""
+    from fastapi.responses import FileResponse
+
     zip_path = profile_manager.create_all_zip()
     return FileResponse(
         zip_path,

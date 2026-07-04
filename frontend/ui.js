@@ -2,22 +2,25 @@
 
 import { DOM, state } from './state.js';
 
-// View switching (main navigation between Generate, Profile Editor, Gallery, Settings)
+// View switching (main navigation between Generate, Profiles, Workflows, Gallery, Settings)
 export function switchView(hideViews, showView) {
     const hideList = Array.isArray(hideViews) ? hideViews : [hideViews];
 
     const isActiveGenerate = !hideList.includes('generate');
-    const isActiveEditor = !hideList.includes('editor');
+    const isActiveProfiles = !hideList.includes('profiles');
+    const isActiveWorkflows = !hideList.includes('workflows');
     const isActiveGallery = !hideList.includes('gallery');
     const isActiveConfig = !hideList.includes('config');
 
     DOM.navGenerate?.classList.toggle('active', isActiveGenerate);
-    DOM.navEditor?.classList.toggle('active', isActiveEditor);
+    DOM.navProfiles?.classList.toggle('active', isActiveProfiles);
+    DOM.navWorkflows?.classList.toggle('active', isActiveWorkflows);
     DOM.navGallery?.classList.toggle('active', isActiveGallery);
     DOM.navConfig?.classList.toggle('active', isActiveConfig);
 
     DOM.screen1.parentElement.style.display = isActiveGenerate ? 'block' : 'none';
-    DOM.profileEditorContainer.style.display = isActiveEditor ? 'flex' : 'none';
+    DOM.profileEditorContainer.style.display = isActiveProfiles ? 'flex' : 'none';
+    DOM.workflowEditorContainer.style.display = isActiveWorkflows ? 'flex' : 'none';
     DOM.galleryContainer.style.display = isActiveGallery ? 'block' : 'none';
     DOM.configEditorContainer.style.display = isActiveConfig ? 'block' : 'none';
 }
@@ -29,6 +32,7 @@ export function showScreen(screenNumber) {
     });
     if (screenNumber === 3) {
         DOM.profileSelectResult.value = state.currentProfile || '';
+        DOM.workflowSelectResult.value = state.currentWorkflow || '';
     }
 }
 
@@ -53,7 +57,7 @@ export function notify(message, type = 'error', duration = 3000) {
     DOM.errorMessage.textContent = message;
     DOM.errorContainer.classList.add('show');
     DOM.errorContainer.classList.toggle('notification', type === 'success');
-    
+
     if (duration > 0) {
         window.notificationTimeout = setTimeout(hideNotification, duration);
     }
@@ -66,7 +70,7 @@ export function hideNotification() {
     if (window.notificationTimeout) {
         clearTimeout(window.notificationTimeout);
     }
-    
+
     DOM.errorMessage.textContent = '';
     DOM.errorContainer.classList.remove('show', 'notification');
 }
@@ -93,25 +97,25 @@ function showDialog(title, content, buttons) {
         // Create overlay
         const overlay = document.createElement('div');
         overlay.className = 'dialog-overlay';
-        
+
         // Create dialog
         const dialog = document.createElement('div');
         dialog.className = 'dialog';
-        
+
         // Dialog header
         const header = document.createElement('div');
         header.className = 'dialog-header';
         header.innerHTML = `<h3>${title}</h3>`;
-        
+
         // Dialog body
         const body = document.createElement('div');
         body.className = 'dialog-body';
         body.appendChild(content);
-        
+
         // Dialog footer
         const footer = document.createElement('div');
         footer.className = 'dialog-footer';
-        
+
         buttons.forEach(btnConfig => {
             const btn = document.createElement('button');
             btn.className = `btn ${btnConfig.primary ? 'primary' : ''}`;
@@ -122,13 +126,13 @@ function showDialog(title, content, buttons) {
             });
             footer.appendChild(btn);
         });
-        
+
         dialog.appendChild(header);
         dialog.appendChild(body);
         dialog.appendChild(footer);
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
-        
+
         // Close on overlay click
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
@@ -136,7 +140,7 @@ function showDialog(title, content, buttons) {
                 resolve(null);
             }
         });
-        
+
         // Focus first input if exists
         const input = content.querySelector('input, textarea');
         if (input) {
@@ -157,7 +161,7 @@ export function showPrompt(message, defaultValue = '') {
     input.className = 'input';
     input.value = defaultValue;
     input.placeholder = 'Enter value...';
-    
+
     return showDialog('Input', input, [
         { label: 'Cancel', action: () => null },
         { label: 'OK', primary: true, action: () => input.value || null }
@@ -173,7 +177,7 @@ export function showConfirm(message) {
     const messageEl = document.createElement('p');
     messageEl.className = 'dialog-message';
     messageEl.textContent = message;
-    
+
     return showDialog('Confirm', messageEl, [
         { label: 'Cancel', action: () => false },
         { label: 'Delete', primary: true, action: () => true }
@@ -183,25 +187,25 @@ export function showConfirm(message) {
 // ============== Helper Functions ==============
 
 /**
- * Populate a select element with profile options.
+ * Populate a select element with options.
  * @param {HTMLSelectElement} selectElement - The select element to populate
- * @param {Array} profiles - Array of profile objects with 'name' property
- * @param {Function} onSelect - Callback when first profile is selected (with profile name)
+ * @param {Array} items - Array of objects with 'name' property
+ * @param {Function} onSelect - Callback when first item is selected (with name)
  */
-export function populateSelect(selectElement, profiles, onSelect) {
+export function populateSelect(selectElement, items, onSelect) {
     const currentValue = selectElement.value;
     selectElement.innerHTML = '';
-    profiles.forEach((profile, index) => {
+    items.forEach((item, index) => {
         const option = document.createElement('option');
-        option.value = profile.name;
-        option.textContent = profile.name;
+        option.value = item.name;
+        option.textContent = item.name;
         selectElement.appendChild(option);
     });
-    if (currentValue && profiles.some(p => p.name === currentValue)) {
+    if (currentValue && items.some(i => i.name === currentValue)) {
         selectElement.value = currentValue;
-    } else if (profiles.length > 0 && onSelect) {
-        selectElement.value = profiles[0].name;
-        onSelect(profiles[0].name);
+    } else if (items.length > 0 && onSelect) {
+        selectElement.value = items[0].name;
+        onSelect(items[0].name);
     }
 }
 
@@ -240,6 +244,8 @@ export function resetState() {
     DOM.cameraInput.value = '';
     DOM.profileSelect.value = state.currentProfile || '';
     DOM.profileSelectResult.value = state.currentProfile || '';
+    DOM.workflowSelect.value = state.currentWorkflow || '';
+    DOM.workflowSelectResult.value = state.currentWorkflow || '';
 }
 
 /**

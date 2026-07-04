@@ -4,9 +4,9 @@ import copy
 import io
 import time
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
-from app.config import OUTPUT_DIR, PROFILES_DIR
+from app.config import OUTPUT_DIR, PROFILES_DIR, WORKFLOWS_DIR
 from app.models import AnalyzeResponse, GenerateResponse
 from app.services.comfyui import create_comfyui_service
 from app.services.llm import create_llm_service
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api", tags=["generation"])
 
 
 def get_profile(profile_name: str) -> dict:
-    """Load a profile configuration by name."""
+    """Load a profile configuration by name (extraction prompt only)."""
     profile_settings = {
         "name": profile_name,
     }
@@ -30,17 +30,15 @@ def get_profile(profile_name: str) -> dict:
     prompt_file_path = PROFILES_DIR / profile_name / "extraction_prompt.txt"
     extraction_prompt = read_file_content(prompt_file_path, strip=True)
     if extraction_prompt is None:
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=404, detail="Prompt file extraction_prompt.txt not found")
     profile_settings["extraction_prompt"] = extraction_prompt
 
     return profile_settings
 
 
-def load_mappings(profile_name: str) -> dict:
-    """Load parameter mappings from mappings.json in the profile directory."""
-    mappings_path = PROFILES_DIR / profile_name / "mappings.json"
+def load_mappings(workflow_name: str) -> dict:
+    """Load parameter mappings from mappings.json in the workflow directory."""
+    mappings_path = WORKFLOWS_DIR / workflow_name / "mappings.json"
     return read_file_content(mappings_path, as_json=True) or {}
 
 
@@ -85,17 +83,17 @@ def apply_mappings(
     return workflow
 
 
-def get_workflow(profile_name: str) -> dict:
+def get_workflow(workflow_name: str) -> dict:
     """Load a workflow configuration by name without applying mappings."""
     from app.utils import ensure_file_exists
 
-    workflow_path = PROFILES_DIR / profile_name / "workflow.json"
-    ensure_file_exists(workflow_path, f"Workflow for profile '{profile_name}' not found")
+    workflow_path = WORKFLOWS_DIR / workflow_name / "workflow.json"
+    ensure_file_exists(workflow_path, f"Workflow '{workflow_name}' not found")
     return read_file_content(workflow_path, as_json=True) or {}
 
 
 def get_workflow_with_mappings(
-    profile_name: str,
+    workflow_name: str,
     prompt: str,
     width: int,
     height: int,
@@ -104,8 +102,8 @@ def get_workflow_with_mappings(
     upscale_resolution: int = 1024,
 ) -> dict:
     """Load workflow and apply parameter mappings."""
-    workflow = get_workflow(profile_name)
-    mappings = load_mappings(profile_name)
+    workflow = get_workflow(workflow_name)
+    mappings = load_mappings(workflow_name)
     return apply_mappings(
         workflow,
         mappings,
@@ -168,6 +166,7 @@ async def analyze_image(
 async def generate_image(
     prompt: str = Form(...),
     profile: str = Form(...),
+    workflow: str = Form(...),
     width: int = Form(1024),
     height: int = Form(1024),
     seed: int = Form(-1),
@@ -177,19 +176,17 @@ async def generate_image(
 ) -> GenerateResponse:
     """
     Generate image from prompt using ComfyUI.
-    Uses the specified profile configuration and custom resolution.
+    Uses the specified profile for naming and workflow for generation.
     Optionally saves the image to the output folder.
     """
     profile_config = get_cached_profile(profile)
     prompt_text = prompt
 
     if not prompt_text:
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=400, detail="No prompt provided")
 
-    workflow = get_workflow_with_mappings(
-        profile_config["name"],
+    workflow_data = get_workflow_with_mappings(
+        workflow,
         prompt_text,
         width,
         height,
@@ -203,10 +200,10 @@ async def generate_image(
     if save:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         timestamp = int(time.time() * 1000)
-        filename = f"{profile_config['name']}-{timestamp}.png"
+        filename = f"{workflow}-{timestamp}.png"
         save_path = str(OUTPUT_DIR / filename)
 
     comfyui_service = create_comfyui_service()
-    image_base64 = await comfyui_service.execute_async(workflow, save_path=save_path)
+    image_base64 = await comfyui_service.execute_async(workflow_data, save_path=save_path)
 
     return GenerateResponse(image=f"data:image/png;base64,{image_base64}")

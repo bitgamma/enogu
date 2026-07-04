@@ -18,8 +18,6 @@ class ProfileSaveRequest(BaseModel):
 
     name: str = Field(..., description="Profile name")
     extraction_prompt: str | None = Field(None, description="Extraction prompt content")
-    workflow: str | None = Field(None, description="Workflow JSON content or object")
-    mappings: str | None = Field(None, description="Mappings JSON content or object")
 
 
 class ProfileDuplicateRequest(BaseModel):
@@ -73,8 +71,79 @@ class ProfileContent(BaseModel):
 
     name: str
     extraction_prompt: str | None = None
+
+
+# ---- Workflow models ----
+
+
+class WorkflowSaveRequest(BaseModel):
+    """Request body for saving a workflow."""
+
+    name: str = Field(..., description="Workflow name")
+    workflow: str | None = Field(None, description="Workflow JSON content or object")
+    mappings: str | None = Field(None, description="Mappings JSON content or object")
+
+
+class WorkflowDuplicateRequest(BaseModel):
+    """Request body for duplicating a workflow."""
+
+    source_name: str = Field(..., description="Source workflow name")
+    new_name: str = Field(..., description="New workflow name")
+
+
+class WorkflowRenameRequest(BaseModel):
+    """Request body for renaming a workflow."""
+
+    old_name: str = Field(..., description="Current workflow name")
+    new_name: str = Field(..., description="New workflow name")
+
+
+class WorkflowItem(BaseModel):
+    """Single workflow item in list response."""
+
+    name: str
+
+
+class WorkflowListResponse(BaseModel):
+    """Response containing list of available workflows."""
+
+    workflows: list[WorkflowItem]
+
+
+class WorkflowContent(BaseModel):
+    """Full workflow content for editor."""
+
+    name: str
     workflow: str | None = None
     mappings: str | None = None
+
+
+class WorkflowSaveResponse(BaseModel):
+    """Response from workflow save operation."""
+
+    status: str = "success"
+    message: str
+
+
+class WorkflowDeleteResponse(BaseModel):
+    """Response from workflow delete operation."""
+
+    status: str = "success"
+    message: str
+
+
+class WorkflowDuplicateResponse(BaseModel):
+    """Response from workflow duplicate operation."""
+
+    status: str = "success"
+    message: str
+
+
+class WorkflowRenameResponse(BaseModel):
+    """Response from workflow rename operation."""
+
+    status: str = "success"
+    message: str
 
 
 class ProfileSaveResponse(BaseModel):

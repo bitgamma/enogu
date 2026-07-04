@@ -9,15 +9,16 @@
 <body>
     <div class="container">
         <h1>Enogu - Redraw reality</h1>
-        
+
         <!-- Navigation -->
         <nav class="main-nav">
             <button class="nav-btn active" id="navGenerate">Generate</button>
-            <button class="nav-btn" id="navEditor">Profile Editor</button>
+            <button class="nav-btn" id="navProfiles">Profiles</button>
+            <button class="nav-btn" id="navWorkflows">Workflows</button>
             <button class="nav-btn" id="navGallery">Gallery</button>
             <button class="nav-btn" id="navConfig">Settings</button>
         </nav>
-        
+
         <!-- Progress Bar -->
         <div class="progress-bar-container">
             <div class="progress-bar">
@@ -38,36 +39,43 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Main Content Area -->
         <div class="main-content">
             <!-- Screen 1: Profile Selection & Image Upload -->
             <div class="screen active" id="screen1">
                 <div class="profile-section">
-                    <label for="profileSelect" class="label">Select Profile:</label>
+                    <label for="profileSelect" class="label">Profile (Prompt):</label>
                     <select id="profileSelect" class="select">
                         <option value="">Loading profiles...</option>
                     </select>
                 </div>
-                
+
+                <div class="profile-section">
+                    <label for="workflowSelect" class="label">Workflow (Generation):</label>
+                    <select id="workflowSelect" class="select">
+                        <option value="">Loading workflows...</option>
+                    </select>
+                </div>
+
                 <div class="upload-section" id="uploadSection">
                     <div class="upload-icon">Upload</div>
                     <p>Click or drag an image here</p>
                     <p style="color: #999; font-size: 14px; margin-top: 10px;">Supports PNG, JPG</p>
                 </div>
-                
+
                 <!-- Mobile camera capture button (shown only on mobile) -->
                 <div class="camera-button-container" style="display: none;">
                     <button class="btn" id="cameraBtn">
                         Capture
                     </button>
                 </div>
-                
+
                 <input type="file" id="fileInput" accept="image/*">
                 <input type="file" id="cameraInput" accept="image/*" capture="user" style="display: none;">
                 <img id="previewImage" alt="Preview">
             </div>
-            
+
             <!-- Screen 2: Processing (Analysis + Generation) -->
             <div class="screen" id="screen2">
                 <div class="processing-section">
@@ -85,7 +93,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Screen 3: Result -->
             <div class="screen" id="screen3">
                 <div class="result-section">
@@ -106,7 +114,7 @@
                             </svg>
                         </button>
                     </div>
-                    
+
                     <div class="control-sections">
                         <div class="regenerate-section">
                             <label for="resolutionSelect" class="label">Aspect Ratio:</label>
@@ -120,9 +128,17 @@
                                 <option value="1536x688">20:9 (Landscape)</option>
                             </select>
 
-                            <button class="btn primary" id="regenerateBtn">
-                                Regenerate
-                            </button>
+                            <div class="regenerate-buttons">
+                                <button class="btn primary" id="regenerateBtn">
+                                    Regenerate
+                                </button>
+                                <button class="btn small" id="regenerate15Btn" title="Regenerate at 1.5x resolution">
+                                    1.5x
+                                </button>
+                                <button class="btn small" id="regenerate2Btn" title="Regenerate at 2x resolution">
+                                    2x
+                                </button>
+                            </div>
                         </div>
 
                         <div class="upscale-section">
@@ -137,7 +153,7 @@
                             </button>
                         </div>
                     </div>
-                    
+
                     <div class="prompt-container">
                         <label for="promptText" class="label">Prompt:</label>
                         <textarea id="promptText" class="prompt-text" rows="5"></textarea>
@@ -150,15 +166,23 @@
                             </button>
                         </div>
                     </div>
-                    
-                    <div class="profile-section">
-                        <label for="profileSelectResult" class="label">Select Profile:</label>
-                        <select id="profileSelectResult" class="select">
-                            <option value="">Loading profiles...</option>
-                        </select>
+
+                    <div class="selection-row">
+                        <div class="profile-section">
+                            <label for="profileSelectResult" class="label">Profile:</label>
+                            <select id="profileSelectResult" class="select">
+                                <option value="">Loading profiles...</option>
+                            </select>
+                        </div>
+                        <div class="profile-section">
+                            <label for="workflowSelectResult" class="label">Workflow:</label>
+                            <select id="workflowSelectResult" class="select">
+                                <option value="">Loading workflows...</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-                
+
                 <!-- Image History -->
                 <div class="history-section">
                     <h3>Image History (Last 10)</h3>
@@ -168,13 +192,13 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Profile Editor Screen -->
         <div class="profile-editor-container" id="profileEditorContainer" style="display: none;">
             <div class="editor-sidebar">
                 <div class="editor-sidebar-header">
                     <h3>Profiles</h3>
-                    <button class="btn" id="downloadAllBtn">Download All</button>
+                    <button class="btn" id="downloadAllProfilesBtn">Download All</button>
                 </div>
                 <div class="profile-list" id="profileList">
                     <!-- Profile items will be loaded here -->
@@ -190,22 +214,50 @@
                         <button class="btn" id="deleteProfileBtn" disabled>Delete</button>
                     </div>
                 </div>
-                <div class="editor-tabs" id="editorTabs" style="display: none;">
-                    <button class="tab-btn active" data-tab="extraction_prompt">extraction_prompt.txt</button>
-                    <button class="tab-btn" data-tab="workflow">workflow.json</button>
-                    <button class="tab-btn" data-tab="mappings">mappings.json</button>
-                </div>
                 <div class="editor-content" id="editorContent" style="display: none;">
                     <textarea class="editor-textarea" id="extractionPromptEditor" placeholder="extraction_prompt.txt content..."></textarea>
-                    <textarea class="editor-textarea" id="workflowEditor" placeholder="workflow.json content..." style="display: none;"></textarea>
-                    <textarea class="editor-textarea" id="mappingsEditor" placeholder="mappings.json content..." style="display: none;"></textarea>
                 </div>
                 <div class="editor-placeholder" id="editorPlaceholder">
                     <p>Select a profile from the sidebar to edit</p>
                 </div>
             </div>
         </div>
-        
+
+        <!-- Workflow Editor Screen -->
+        <div class="profile-editor-container" id="workflowEditorContainer" style="display: none;">
+            <div class="editor-sidebar">
+                <div class="editor-sidebar-header">
+                    <h3>Workflows</h3>
+                    <button class="btn" id="downloadAllWorkflowsBtn">Download All</button>
+                </div>
+                <div class="profile-list" id="workflowList">
+                    <!-- Workflow items will be loaded here -->
+                </div>
+            </div>
+            <div class="editor-main">
+                <div class="editor-header">
+                    <h2 id="editorWorkflowName">Select a workflow</h2>
+                    <div class="editor-actions">
+                        <button class="btn primary" id="saveWorkflowBtn" disabled>Save</button>
+                        <button class="btn" id="duplicateWorkflowBtn" disabled>Duplicate</button>
+                        <button class="btn" id="renameWorkflowBtn" disabled>Rename</button>
+                        <button class="btn" id="deleteWorkflowBtn" disabled>Delete</button>
+                    </div>
+                </div>
+                <div class="editor-tabs" id="workflowEditorTabs" style="display: none;">
+                    <button class="tab-btn active" data-tab="workflow">workflow.json</button>
+                    <button class="tab-btn" data-tab="mappings">mappings.json</button>
+                </div>
+                <div class="editor-content" id="workflowEditorContent" style="display: none;">
+                    <textarea class="editor-textarea" id="workflowJsonEditor" placeholder="workflow.json content..."></textarea>
+                    <textarea class="editor-textarea" id="mappingsJsonEditor" placeholder="mappings.json content..." style="display: none;"></textarea>
+                </div>
+                <div class="editor-placeholder" id="workflowEditorPlaceholder">
+                    <p>Select a workflow from the sidebar to edit</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Gallery Screen -->
         <div class="gallery-container" id="galleryContainer" style="display: none;">
             <div class="gallery-header">
@@ -261,14 +313,14 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Error Display -->
         <div class="error-container" id="errorContainer">
             <div class="error-message" id="errorMessage"></div>
             <button class="error-close" id="errorClose">✕</button>
         </div>
     </div>
-    
+
     <script type="module" src="/static/main.js"></script>
 </body>
 </html>
