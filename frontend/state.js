@@ -151,6 +151,9 @@ export const state = {
 
     // Last generation parameters (for save-to-gallery re-execution)
     lastGenerationParams: null,
+
+    // Resolution multiplier from restored history item (used by upscale button)
+    historyResolutionMultiplier: null,
 };
 
 /**

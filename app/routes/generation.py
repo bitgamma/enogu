@@ -165,7 +165,6 @@ async def analyze_image(
 @handle_api_errors
 async def generate_image(
     prompt: str = Form(...),
-    profile: str = Form(...),
     workflow: str = Form(...),
     width: int = Form(1024),
     height: int = Form(1024),
@@ -176,10 +175,9 @@ async def generate_image(
 ) -> GenerateResponse:
     """
     Generate image from prompt using ComfyUI.
-    Uses the specified profile for naming and workflow for generation.
+    Uses the specified workflow for generation.
     Optionally saves the image to the output folder.
     """
-    profile_config = get_cached_profile(profile)
     prompt_text = prompt
 
     if not prompt_text:

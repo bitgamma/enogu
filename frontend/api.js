@@ -36,7 +36,6 @@ export async function analyzeImageAPI(file, profile) {
 /**
  * Generate an image via the /api/generate endpoint.
  * @param {string} prompt - The generation prompt
- * @param {string} profile - The profile name
  * @param {string} workflow - The workflow name
  * @param {number} width - Image width
  * @param {number} height - Image height
@@ -46,10 +45,9 @@ export async function analyzeImageAPI(file, profile) {
  * @param {boolean} save - Whether to save to gallery
  * @returns {Promise<{image: string}>}
  */
-export async function generateImageAPI(prompt, profile, workflow, width, height, seed, upscale, upscaleResolution, save = false) {
+export async function generateImageAPI(prompt, workflow, width, height, seed, upscale, upscaleResolution, save = false) {
     const formData = new FormData();
     formData.append('prompt', prompt);
-    formData.append('profile', profile);
     formData.append('workflow', workflow);
     formData.append('width', width);
     formData.append('height', height);

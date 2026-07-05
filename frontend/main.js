@@ -3,7 +3,7 @@
 import { DOM, ACTION_BUTTONS, RESOLUTIONS, state, generateRandomSeed } from './state.js';
 import { analyzeImageAPI, generateImageAPI, loadProfiles as fetchProfiles, loadWorkflows as fetchWorkflows, downloadAllProfiles, downloadAllWorkflows, loadGallery, deleteGalleryImage, deleteAllGalleryImages } from './api.js';
 import { showScreen, switchView, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, populateSelect, setupMobileCameraButton, resetState, createAsyncHandler, showSuccess, showConfirm } from './ui.js';
-import { addToHistory } from './history.js';
+import { addToHistory, updateHistoryImage, renderHistory } from './history.js';
 import { populateEditorProfileList, syncEditorSidebar, loadProfileContentIntoEditor, saveCurrentProfile, duplicateCurrentProfile, renameCurrentProfile, deleteCurrentProfile } from './profile-editor.js';
 import { populateEditorWorkflowList, syncWorkflowEditorSidebar, loadWorkflowContentIntoEditor, saveCurrentWorkflow, duplicateCurrentWorkflow, renameCurrentWorkflow, deleteCurrentWorkflow, selectWorkflowForEdit } from './workflow-editor.js';
 import { saveConfigView, refreshLLMModels, loadConfigView } from './config-editor.js';
@@ -184,10 +184,12 @@ async function generateImage(upscale = false, save = false, resolutionMultiplier
     const width = Math.round(state.currentResolution.width * resolutionMultiplier);
     const height = Math.round(state.currentResolution.height * resolutionMultiplier);
 
+    // Snapshot current prompt for history (before any async operations)
+    const promptSnapshot = DOM.promptText.value;
+
     // Store generation parameters for save-to-gallery re-execution
     state.lastGenerationParams = {
-        prompt: DOM.promptText.value,
-        profile: state.currentProfile,
+        prompt: promptSnapshot,
         workflow: state.currentWorkflow,
         width: width,
         height: height,
@@ -196,17 +198,36 @@ async function generateImage(upscale = false, save = false, resolutionMultiplier
         upscaleResolution: state.upscaleResolution,
     };
 
-    const data = await generateImageAPI(
-        DOM.promptText.value,
-        state.currentProfile,
-        state.currentWorkflow,
-        width,
-        height,
-        seed,
-        upscale,
-        state.upscaleResolution,
-        save
-    );
+    // Create history placeholder immediately with all metadata
+    addToHistory('', promptSnapshot, {
+        seed: seed,
+        workflow: state.currentWorkflow,
+        width: state.currentResolution.width,
+        height: state.currentResolution.height,
+        resolutionMultiplier: resolutionMultiplier,
+    });
+    state.historyResolutionMultiplier = resolutionMultiplier;
+
+    let data;
+    try {
+        data = await generateImageAPI(
+            promptSnapshot,
+            state.currentWorkflow,
+            width,
+            height,
+            seed,
+            upscale,
+            state.upscaleResolution,
+            save
+        );
+
+        // Update history with the generated image
+        updateHistoryImage(0, data.image);
+    } catch (err) {
+        state.imageHistory.splice(0, 1);
+        renderHistory();
+        throw err;
+    }
 
     const resultImage = DOM.resultImage;
     resultImage.src = data.image;
@@ -214,7 +235,6 @@ async function generateImage(upscale = false, save = false, resolutionMultiplier
         resultImage.style.display = 'block';
         DOM.regenerateBtn.disabled = false;
         DOM.progressFill.style.width = '100%';
-        addToHistory(data.image, DOM.promptText.value);
     };
 }
 
@@ -229,7 +249,6 @@ async function saveToGallery() {
 
     const data = await generateImageAPI(
         params.prompt,
-        params.profile,
         params.workflow,
         params.width,
         params.height,
@@ -244,7 +263,13 @@ async function saveToGallery() {
     resultImage.onload = () => {
         resultImage.style.display = 'block';
         DOM.progressFill.style.width = '100%';
-        addToHistory(data.image, params.prompt);
+        addToHistory(data.image, params.prompt, {
+            seed: params.seed,
+            workflow: params.workflow,
+            width: Math.round(params.width / (state.historyResolutionMultiplier || 1)),
+            height: Math.round(params.height / (state.historyResolutionMultiplier || 1)),
+            resolutionMultiplier: state.historyResolutionMultiplier || 1,
+        });
         showSuccess('Image saved to gallery');
     };
 }
@@ -522,7 +547,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     ACTION_BUTTONS[1].operation = () => generateImage(false, false, 1);
     ACTION_BUTTONS[2].operation = () => generateImage(false, false, 1.5);
     ACTION_BUTTONS[3].operation = () => generateImage(false, false, 2);
-    ACTION_BUTTONS[4].operation = () => generateImage(true, true);
+    ACTION_BUTTONS[4].operation = () => {
+        const multiplier = state.historyResolutionMultiplier || 1;
+        generateImage(true, true, multiplier);
+    };
     ACTION_BUTTONS[5].operation = saveToGallery;
 
     ACTION_BUTTONS.forEach(({ btn, loading, complete, progress, operation, error }) => {
@@ -536,11 +564,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     DOM.newBtn.addEventListener('click', () => {
         resetState();
+        state.historyResolutionMultiplier = null;
         showScreen(1);
     });
 
     DOM.resolutionSelect.addEventListener('change', (e) => {
         state.currentResolution = RESOLUTIONS[e.target.value] || { width: 768, height: 1024 };
+        state.historyResolutionMultiplier = null;
     });
 
     DOM.downloadBtn.addEventListener('click', () => {
