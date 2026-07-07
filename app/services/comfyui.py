@@ -123,8 +123,8 @@ class ComfyUIService:
         If save_path is provided, the raw image bytes are also written to that file.
         """
         for _node_id, node_data in outputs.items():
-            if "images" in node_data:
-                image_data = node_data["images"][-1]
+            if ("images" in node_data) and not ("input_images" in node_data):
+                image_data = node_data["images"][0]
                 image_bytes = requests.get(
                     f"{self.endpoint}/view?filename={image_data['filename']}&type={image_data['type']}&subfolder={image_data.get('subfolder', '')}"
                 ).content
