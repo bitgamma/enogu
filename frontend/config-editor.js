@@ -1,7 +1,7 @@
 // Configuration editor logic
 
 import { DOM, state } from './state.js';
-import { saveConfig, refreshLLMModels as fetchModels } from './api.js';
+import { loadConfig, saveConfig, refreshLLMModels as fetchModels } from './api.js';
 import { showSuccess, showError, populateSelect } from './ui.js';
 
 /**
@@ -9,19 +9,16 @@ import { showSuccess, showError, populateSelect } from './ui.js';
  */
 export async function loadConfigView() {
     try {
-        const response = await fetch('/api/config/providers');
-        const data = await response.json();
-        
-        if (data.providers) {
-            state.currentConfig = data.providers;
-            DOM.comfyuiEndpoint.value = state.currentConfig.comfyui_endpoint || '';
-            DOM.llmEndpoint.value = state.currentConfig.llm_endpoint || '';
-            DOM.llmApiKey.value = state.currentConfig.llm_apikey || '';
-            DOM.llmSystemPrompt.value = state.currentConfig.system_prompt || '';
-            await refreshLLMModels();
-            if (state.currentConfig.llm_model) {
-                DOM.llmModel.value = state.currentConfig.llm_model;
-            }
+        const providers = await loadConfig();
+
+        state.currentConfig = providers;
+        DOM.comfyuiEndpoint.value = providers.comfyui_endpoint || '';
+        DOM.llmEndpoint.value = providers.llm_endpoint || '';
+        DOM.llmApiKey.value = providers.llm_apikey || '';
+        DOM.llmSystemPrompt.value = providers.system_prompt || '';
+        await refreshLLMModels();
+        if (providers.llm_model) {
+            DOM.llmModel.value = providers.llm_model;
         }
     } catch (err) {
         console.error('Failed to load config:', err);

@@ -1,8 +1,9 @@
 // Main entry point - initialization and event binding
 
 import { DOM, ACTION_BUTTONS, RESOLUTIONS, state, generateRandomSeed } from './state.js';
-import { analyzeImageAPI, generateImageAPI, loadProfiles as fetchProfiles, loadWorkflows as fetchWorkflows, downloadAllProfiles, downloadAllWorkflows, loadGallery, deleteGalleryImage, deleteAllGalleryImages } from './api.js';
-import { showScreen, switchView, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, populateSelect, setupMobileCameraButton, resetState, createAsyncHandler, showSuccess, showConfirm } from './ui.js';
+import { analyzeImageAPI, generateImageAPI, downloadAllProfiles, downloadAllWorkflows, loadGallery, deleteGalleryImage, deleteAllGalleryImages } from './api.js';
+import { showScreen, switchView, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, setupMobileCameraButton, resetState, createAsyncHandler, showSuccess, showConfirm } from './ui.js';
+import { refreshProfilesAndUI, refreshWorkflowsAndUI, populateProfileSelects, populateWorkflowSelects, loadProfilesAndUI, loadWorkflowsAndUI } from './refresh.js';
 import { addToHistory, updateHistoryImage, renderHistory } from './history.js';
 import { populateEditorProfileList, syncEditorSidebar, loadProfileContentIntoEditor, saveCurrentProfile, duplicateCurrentProfile, renameCurrentProfile, deleteCurrentProfile } from './profile-editor.js';
 import { populateEditorWorkflowList, syncWorkflowEditorSidebar, loadWorkflowContentIntoEditor, saveCurrentWorkflow, duplicateCurrentWorkflow, renameCurrentWorkflow, deleteCurrentWorkflow, selectWorkflowForEdit } from './workflow-editor.js';
@@ -73,84 +74,6 @@ function handleFileUpload(file) {
     };
     reader.readAsDataURL(file);
 }
-
-/**
- * Load profiles from backend and update UI.
- */
-async function loadProfilesAndUI() {
-    try {
-        const profiles = await fetchProfiles();
-
-        if (profiles.length > 0) {
-            state.availableProfiles = [...profiles];
-            state.profilesLoaded = true;
-        } else {
-            showError('No profiles available');
-        }
-    } catch (err) {
-        console.error('Failed to load profiles:', err);
-        showError('Failed to load profiles. Please refresh the page.');
-    }
-}
-
-/**
- * Load workflows from backend and update UI.
- */
-async function loadWorkflowsAndUI() {
-    try {
-        const workflows = await fetchWorkflows();
-
-        if (workflows.length > 0) {
-            state.availableWorkflows = [...workflows];
-            state.workflowsLoaded = true;
-        } else {
-            showError('No workflows available');
-        }
-    } catch (err) {
-        console.error('Failed to load workflows:', err);
-        showError('Failed to load workflows. Please refresh the page.');
-    }
-}
-
-/**
- * Populate all profile selects from loaded data.
- */
-function populateProfileSelects() {
-    if (state.availableProfiles.length > 0) {
-        populateSelect(DOM.profileSelect, state.availableProfiles, (name) => { state.currentProfile = name; });
-        populateSelect(DOM.profileSelectResult, state.availableProfiles);
-    }
-}
-
-/**
- * Populate all workflow selects from loaded data.
- */
-function populateWorkflowSelects() {
-    if (state.availableWorkflows.length > 0) {
-        populateSelect(DOM.workflowSelect, state.availableWorkflows, (name) => { state.currentWorkflow = name; });
-        populateSelect(DOM.workflowSelectResult, state.availableWorkflows);
-    }
-}
-
-/**
- * Refresh profiles and update all UIs.
- */
-window.refreshProfilesAndUI = async function(extraCallback = null) {
-    await loadProfilesAndUI();
-    populateProfileSelects();
-    populateEditorProfileList();
-    if (extraCallback) extraCallback();
-};
-
-/**
- * Refresh workflows and update all UIs.
- */
-window.refreshWorkflowsAndUI = async function(extraCallback = null) {
-    await loadWorkflowsAndUI();
-    populateWorkflowSelects();
-    populateEditorWorkflowList();
-    if (extraCallback) extraCallback();
-};
 
 // Profile selection change handler
 function handleProfileChange(e) {
@@ -539,22 +462,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     DOM.cameraBtn.addEventListener('click', () => DOM.cameraInput.click());
 
     // Action buttons - attach operation handlers after DOM is ready
-    ACTION_BUTTONS[0].operation = async () => {
-        DOM.stepIndicator2.classList.add('active');
-        const data = await analyzeImageAPI(state.selectedFile, state.currentProfile);
-        DOM.promptText.value = data.prompt;
+    const actionOperations = {
+        reanalyze: async () => {
+            DOM.stepIndicator2.classList.add('active');
+            const data = await analyzeImageAPI(state.selectedFile, state.currentProfile);
+            DOM.promptText.value = data.prompt;
+        },
+        regenerate: () => generateImage(false, false, 1),
+        regenerate15: () => generateImage(false, false, 1.5),
+        regenerate2: () => generateImage(false, false, 2),
+        upscale: () => {
+            const multiplier = state.historyResolutionMultiplier || 1;
+            generateImage(true, true, multiplier);
+        },
+        saveToGallery,
     };
-    ACTION_BUTTONS[1].operation = () => generateImage(false, false, 1);
-    ACTION_BUTTONS[2].operation = () => generateImage(false, false, 1.5);
-    ACTION_BUTTONS[3].operation = () => generateImage(false, false, 2);
-    ACTION_BUTTONS[4].operation = () => {
-        const multiplier = state.historyResolutionMultiplier || 1;
-        generateImage(true, true, multiplier);
-    };
-    ACTION_BUTTONS[5].operation = saveToGallery;
 
-    ACTION_BUTTONS.forEach(({ btn, loading, complete, progress, operation, error }) => {
-        btn.addEventListener('click', createAsyncHandler(btn, loading, complete, progress, operation, error));
+    ACTION_BUTTONS.forEach(({ btn, loading, complete, progress, key, error }) => {
+        const operation = actionOperations[key];
+        if (operation) {
+            btn.addEventListener('click', createAsyncHandler(btn, loading, complete, progress, operation, error));
+        }
     });
 
     // Control handlers

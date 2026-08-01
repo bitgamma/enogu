@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 
 from app.config import OUTPUT_DIR
 from app.models import GalleryItem, GalleryListResponse
-from app.utils import handle_api_errors
+from app.utils import handle_api_errors, validate_filename_or_raise
 
 router = APIRouter(prefix="/api/gallery", tags=["gallery"])
 
@@ -43,6 +43,7 @@ async def list_gallery() -> GalleryListResponse:
 async def get_image(filename: str) -> FileResponse:
     """Download a saved image from the gallery."""
     _ensure_output_dir()
+    validate_filename_or_raise(filename, "filename")
     filepath = OUTPUT_DIR / filename
     if not filepath.is_file():
         raise HTTPException(status_code=404, detail=f"Image '{filename}' not found")
@@ -67,6 +68,7 @@ async def delete_all_images() -> dict:
 async def delete_image(filename: str) -> dict:
     """Delete a specific saved image from the gallery."""
     _ensure_output_dir()
+    validate_filename_or_raise(filename, "filename")
     filepath = OUTPUT_DIR / filename
     if not filepath.is_file():
         raise HTTPException(status_code=404, detail=f"Image '{filename}' not found")

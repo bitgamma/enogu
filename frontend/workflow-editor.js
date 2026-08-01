@@ -1,8 +1,79 @@
 // Workflow editor logic
 
-import { DOM, WORKFLOW_OPERATIONS, state } from './state.js';
-import { loadWorkflowContent, handleApiResponse, downloadWorkflow } from './api.js';
-import { showPrompt, showConfirm, showError } from './ui.js';
+import { DOM, state } from './state.js';
+import { loadWorkflowContent, downloadWorkflow } from './api.js';
+import { refreshWorkflowsAndUI } from './refresh.js';
+import { executeOperation } from './editor.js';
+import { showError } from './ui.js';
+
+// Workflow operation configurations
+const WORKFLOW_OPERATIONS = {
+    save: {
+        endpoint: '/api/workflow-editor/workflow',
+        method: 'POST',
+        successMsg: 'Workflow saved successfully',
+        buildPayload: (name) => ({
+            name,
+            workflow: DOM.workflowJsonEditor.value,
+            mappings: DOM.mappingsJsonEditor.value,
+        }),
+        onsuccess: () => {
+            if (!state.editorOriginalWorkflowNames.has(state.currentWorkflow)) {
+                refreshWorkflowsAndUI(populateEditorWorkflowList);
+            }
+        },
+    },
+    duplicate: {
+        endpoint: '/api/workflow-editor/workflow/duplicate',
+        method: 'POST',
+        successMsg: 'Workflow duplicated successfully',
+        prompt: (name) => `Enter new name for duplicate of "${name}":`,
+        buildPayload: (name, newName) => ({ source_name: name, new_name: newName }),
+        onsuccess: () => refreshWorkflowsAndUI(populateEditorWorkflowList),
+    },
+    rename: {
+        endpoint: '/api/workflow-editor/workflow/rename',
+        method: 'POST',
+        successMsg: 'Workflow renamed successfully',
+        prompt: (name) => `Enter new name for "${name}":`,
+        buildPayload: (name, newName) => ({ old_name: name, new_name: newName }),
+        onsuccess: (newName) => {
+            refreshWorkflowsAndUI(() => {
+                DOM.editorWorkflowName.textContent = newName;
+                DOM.workflowSelect.value = newName;
+                DOM.workflowSelectResult.value = newName;
+                populateEditorWorkflowList();
+            });
+        },
+    },
+    delete: {
+        endpoint: (name) => `/api/workflow-editor/workflow/${encodeURIComponent(name)}`,
+        method: 'DELETE',
+        successMsg: 'Workflow deleted successfully',
+        confirm: (name) => `Are you sure you want to delete workflow "${name}"? This action cannot be undone.`,
+        buildPayload: (name) => ({ name }),
+        onsuccess: () => {
+            state.currentWorkflow = null;
+            DOM.workflowSelect.value = '';
+            DOM.workflowSelectResult.value = '';
+            state.editorWorkflowData = { workflow: '', mappings: '' };
+            DOM.editorWorkflowName.textContent = 'Select a workflow';
+            DOM.saveWorkflowBtn.disabled = true;
+            DOM.duplicateWorkflowBtn.disabled = true;
+            DOM.renameWorkflowBtn.disabled = true;
+            DOM.deleteWorkflowBtn.disabled = true;
+            DOM.workflowEditorTabs.style.display = 'none';
+            DOM.workflowEditorContent.style.display = 'none';
+            DOM.workflowEditorPlaceholder.style.display = 'block';
+            DOM.workflowJsonEditor.value = '';
+            DOM.mappingsJsonEditor.value = '';
+            document.querySelectorAll('.workflow-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            refreshWorkflowsAndUI(populateEditorWorkflowList);
+        },
+    },
+};
 
 /**
  * Populate editor workflow list from already-loaded data.
@@ -122,71 +193,19 @@ export function switchWorkflowEditorTab(tabName) {
     }
 }
 
-/**
- * Execute a workflow operation.
- * @param {string} operationKey - Operation key (save, duplicate, rename, delete)
- */
-export async function executeWorkflowOperation(operationKey) {
-    if (!state.currentWorkflow) return;
-
-    const op = WORKFLOW_OPERATIONS[operationKey];
-
-    // Handle confirmation dialog
-    if (op.confirm && !(await showConfirm(op.confirm(state.currentWorkflow)))) {
-        return;
-    }
-
-    // Handle name prompt
-    let newName = null;
-    if (op.prompt) {
-        newName = await showPrompt(op.prompt(state.currentWorkflow));
-        if (newName === null) return;
-        if (newName === state.currentWorkflow) {
-            showError('A workflow with this name already exists');
-            return;
-        }
-    }
-
-    const payload = op.buildPayload(state.currentWorkflow, newName);
-    const endpoint = typeof op.endpoint === 'function' ? op.endpoint(state.currentWorkflow) : op.endpoint;
-
-    let response;
-    switch (op.method) {
-        case 'POST':
-            response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            break;
-        case 'DELETE':
-            response = await fetch(endpoint, { method: 'DELETE' });
-            break;
-    }
-
-    const success = await handleApiResponse(response, op.successMsg, op.successMsg);
-    if (success && op.onsuccess) {
-        await op.onsuccess(newName);
-        // Special handling for duplicate: select the new workflow
-        if (operationKey === 'duplicate' && newName) {
-            selectWorkflowForEdit(newName);
-        }
-    }
-}
-
 // Workflow operation handlers
 export async function saveCurrentWorkflow() {
-    await executeWorkflowOperation('save');
+    await executeOperation(WORKFLOW_OPERATIONS, 'save', state.currentWorkflow, 'workflow', selectWorkflowForEdit);
 }
 
 export async function duplicateCurrentWorkflow() {
-    await executeWorkflowOperation('duplicate');
+    await executeOperation(WORKFLOW_OPERATIONS, 'duplicate', state.currentWorkflow, 'workflow', selectWorkflowForEdit);
 }
 
 export async function renameCurrentWorkflow() {
-    await executeWorkflowOperation('rename');
+    await executeOperation(WORKFLOW_OPERATIONS, 'rename', state.currentWorkflow, 'workflow', selectWorkflowForEdit);
 }
 
 export async function deleteCurrentWorkflow() {
-    await executeWorkflowOperation('delete');
+    await executeOperation(WORKFLOW_OPERATIONS, 'delete', state.currentWorkflow, 'workflow', selectWorkflowForEdit);
 }

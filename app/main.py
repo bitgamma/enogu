@@ -9,15 +9,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import FRONTEND_DIR, get_server_config
 from app.routes import config_router, gallery_router, generation_router, profiles_router, workflows_router
-from app.utils import AppError
 
 app = FastAPI(title="Image Generation Webapp")
-
-
-@app.exception_handler(AppError)
-async def app_exception_handler(request: Request, exc: AppError) -> JSONResponse:
-    """Handle custom application exceptions."""
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
 
 @app.exception_handler(RequestValidationError)
@@ -38,11 +31,11 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     )
 
 
-# CORS configuration
+# CORS configuration - LAN usage, allow all origins without credentials
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -65,26 +58,6 @@ app.include_router(gallery_router)
 app.include_router(profiles_router)
 app.include_router(workflows_router)
 app.include_router(config_router)
-
-
-@app.get("/api/profiles")
-async def list_profiles() -> dict:
-    """List all available profiles."""
-    from app.config import PROFILES_DIR
-    from app.utils import ProfileManager
-
-    manager = ProfileManager(PROFILES_DIR)
-    return {"profiles": manager.list_profiles()}
-
-
-@app.get("/api/workflows")
-async def list_workflows() -> dict:
-    """List all available workflows."""
-    from app.config import WORKFLOWS_DIR
-    from app.utils import WorkflowManager
-
-    manager = WorkflowManager(WORKFLOWS_DIR)
-    return {"workflows": manager.list_workflows()}
 
 
 if __name__ == "__main__":

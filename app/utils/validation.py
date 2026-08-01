@@ -2,12 +2,20 @@
 
 import copy
 import json
+import logging
 import re
 from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
 from fastapi import HTTPException
+
+logger = logging.getLogger(__name__)
+
+# Directory/entity names may contain alphanumerics, dash and underscore (no traversal).
+NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+# Filenames additionally allow a dot (extension).
+FILENAME_RE = re.compile(r"^[a-zA-Z0-9._-]+$")
 
 # Parameter mapping handlers - maps param names to their input keys and values
 PARAM_HANDLERS = {
@@ -19,14 +27,20 @@ PARAM_HANDLERS = {
 }
 
 
-def validate_profile_name(name: str) -> bool:
-    """Validate profile name to prevent directory traversal attacks."""
-    return bool(re.match(r"^[a-zA-Z0-9_-]+$", name))
+def validate_name(name: str) -> bool:
+    """Validate a directory/entity name to prevent directory traversal attacks."""
+    return bool(NAME_RE.match(name or ""))
 
 
-def validate_profile_name_or_raise(name: str | None, field: str = "profile name") -> None:
-    """Validate profile name and raise HTTPException if invalid."""
-    if not name or not validate_profile_name(name):
+def validate_name_or_raise(name: str | None, field: str = "name") -> None:
+    """Validate a name and raise HTTPException if invalid."""
+    if not name or not validate_name(name):
+        raise HTTPException(status_code=400, detail=f"Invalid {field}")
+
+
+def validate_filename_or_raise(filename: str | None, field: str = "filename") -> None:
+    """Validate a filename and raise HTTPException if invalid."""
+    if not filename or not FILENAME_RE.match(filename):
         raise HTTPException(status_code=400, detail=f"Invalid {field}")
 
 
@@ -76,19 +90,6 @@ def apply_mappings(
     return workflow
 
 
-def require_valid_profile_name(func: Callable) -> Callable:
-    """Decorator that validates profile_name parameter in kwargs."""
-
-    @wraps(func)
-    async def wrapper(*args: Any, **kwargs: Any) -> Any:
-        profile_name = kwargs.get("profile_name")
-        if profile_name and not validate_profile_name(profile_name):
-            raise HTTPException(status_code=400, detail="Invalid profile name")
-        return await func(*args, **kwargs)
-
-    return wrapper
-
-
 def handle_api_errors(func: Callable) -> Callable:
     """Decorator that catches non-HTTP exceptions and converts them to 500 errors."""
 
@@ -98,8 +99,9 @@ def handle_api_errors(func: Callable) -> Callable:
             return await func(*args, **kwargs)
         except HTTPException:
             raise
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        except Exception:
+            logger.exception("Unhandled error in API handler")
+            raise HTTPException(status_code=500, detail="Internal server error") from None
 
     return wrapper
 
@@ -112,11 +114,6 @@ def build_llm_headers(apikey: str, content_type: str = "application/json") -> di
     return headers
 
 
-def success_response(**kwargs: Any) -> dict:
-    """Create a standardized success API response."""
-    return {"success": True, **kwargs}
-
-
 def validate_json(value: Any, field_name: str = "field") -> dict | None:
     """Validate and parse JSON string or return dict as-is. Returns None if value is None."""
     if value is None:
@@ -127,16 +124,3 @@ def validate_json(value: Any, field_name: str = "field") -> dict | None:
         return value  # Already a dict
     except (json.JSONDecodeError, TypeError):
         raise HTTPException(status_code=400, detail=f"Invalid {field_name} JSON") from None
-
-
-def extract_model_names(models: list) -> list[str]:
-    """Extract model names from various API response formats (list of strings or dicts)."""
-    model_list = []
-    for model in models:
-        if isinstance(model, str):
-            model_list.append(model)
-        elif isinstance(model, dict):
-            model_id = model.get("id") or model.get("name") or model.get("model")
-            if model_id:
-                model_list.append(model_id)
-    return model_list

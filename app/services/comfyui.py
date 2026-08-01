@@ -2,10 +2,9 @@
 
 import asyncio
 import base64
-import time
 from pathlib import Path
 
-import requests
+import httpx
 from fastapi import HTTPException
 
 from app.config import (
@@ -21,86 +20,44 @@ class ComfyUIService:
     def __init__(self, endpoint: str) -> None:
         self.endpoint = endpoint
 
-    def execute(self, workflow: dict, save_path: str | None = None) -> str:
+    async def execute(self, workflow: dict, save_path: str | None = None) -> str:
         """
         Execute ComfyUI workflow and return base64 encoded result image.
 
         If save_path is provided, the raw image bytes are also written to that file.
         """
-        # Queue the workflow
-        queue_response = requests.post(
-            f"{self.endpoint}/prompt",
-            json={"prompt": workflow, "client_id": "webapp"},
-        )
-
-        if queue_response.status_code != 200:
-            raise HTTPException(status_code=500, detail=f"ComfyUI queue error: {queue_response.text}")
-
-        prompt_id = queue_response.json()["prompt_id"]
-
-        # Wait for completion
-        history_entry = self._poll_history(prompt_id)
-
-        if "errors" in history_entry:
-            raise HTTPException(
-                status_code=500,
-                detail=f"ComfyUI workflow failed: {history_entry['errors']}",
+        async with httpx.AsyncClient(timeout=30) as client:
+            # Queue the workflow
+            queue_response = await client.post(
+                f"{self.endpoint}/prompt",
+                json={"prompt": workflow, "client_id": "webapp"},
             )
 
-        return self._extract_image(history_entry["outputs"], save_path=save_path)
-
-    async def execute_async(self, workflow: dict, save_path: str | None = None) -> str:
-        """
-        Execute ComfyUI workflow asynchronously and return base64 encoded result image.
-
-        If save_path is provided, the raw image bytes are also written to that file.
-        """
-        # Queue the workflow
-        queue_response = requests.post(
-            f"{self.endpoint}/prompt",
-            json={"prompt": workflow, "client_id": "webapp"},
-        )
-
-        if queue_response.status_code != 200:
-            raise HTTPException(status_code=500, detail=f"ComfyUI queue error: {queue_response.text}")
-
-        prompt_id = queue_response.json()["prompt_id"]
-
-        # Wait for completion
-        history_entry = await self._poll_history_async(prompt_id)
-
-        if "errors" in history_entry:
-            raise HTTPException(
-                status_code=500,
-                detail=f"ComfyUI workflow failed: {history_entry['errors']}",
-            )
-
-        return self._extract_image(history_entry["outputs"], save_path=save_path)
-
-    def _poll_history(self, prompt_id: str) -> dict:
-        """Poll ComfyUI history synchronously until workflow completes or fails."""
-        for _ in range(int(COMFYUI_POLL_TIMEOUT_SECONDS / COMFYUI_POLL_INTERVAL_SECONDS)):
-            history_response = requests.get(f"{self.endpoint}/history/{prompt_id}")
-
-            if history_response.status_code != 200:
+            if queue_response.status_code != 200:
                 raise HTTPException(
                     status_code=500,
-                    detail=f"ComfyUI history error: {history_response.text}",
+                    detail=f"ComfyUI queue error: {queue_response.text}",
                 )
 
-            history = history_response.json()
+            prompt_id = queue_response.json()["prompt_id"]
 
-            if prompt_id in history:
-                return history[prompt_id]
+            # Wait for completion
+            history_entry = await self._poll_history(client, prompt_id)
 
-            time.sleep(COMFYUI_POLL_INTERVAL_SECONDS)
+            if "errors" in history_entry:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"ComfyUI workflow failed: {history_entry['errors']}",
+                )
 
-        raise HTTPException(status_code=500, detail="ComfyUI workflow timed out")
+            return await self._extract_image(client, history_entry["outputs"], save_path=save_path)
 
-    async def _poll_history_async(self, prompt_id: str) -> dict:
-        """Poll ComfyUI history asynchronously until workflow completes or fails."""
+    execute_async = execute
+
+    async def _poll_history(self, client: httpx.AsyncClient, prompt_id: str) -> dict:
+        """Poll ComfyUI history until workflow completes or fails."""
         for _ in range(int(COMFYUI_POLL_TIMEOUT_SECONDS / COMFYUI_POLL_INTERVAL_SECONDS)):
-            history_response = requests.get(f"{self.endpoint}/history/{prompt_id}")
+            history_response = await client.get(f"{self.endpoint}/history/{prompt_id}")
 
             if history_response.status_code != 200:
                 raise HTTPException(
@@ -117,17 +74,21 @@ class ComfyUIService:
 
         raise HTTPException(status_code=500, detail="ComfyUI workflow timed out")
 
-    def _extract_image(self, outputs: dict, save_path: str | None = None) -> str:
+    async def _extract_image(
+        self, client: httpx.AsyncClient, outputs: dict, save_path: str | None = None
+    ) -> str:
         """Extract and encode the first image from ComfyUI workflow outputs.
 
         If save_path is provided, the raw image bytes are also written to that file.
         """
-        for _node_id, node_data in outputs.items():
-            if ("images" in node_data) and not ("input_images" in node_data):
+        for node_data in outputs.values():
+            if "images" in node_data and "input_images" not in node_data and node_data["images"]:
                 image_data = node_data["images"][0]
-                image_bytes = requests.get(
-                    f"{self.endpoint}/view?filename={image_data['filename']}&type={image_data['type']}&subfolder={image_data.get('subfolder', '')}"
-                ).content
+                view_response = await client.get(
+                    f"{self.endpoint}/view?filename={image_data['filename']}"
+                    f"&type={image_data['type']}&subfolder={image_data.get('subfolder', '')}"
+                )
+                image_bytes = view_response.content
                 if save_path is not None:
                     Path(save_path).write_bytes(image_bytes)
                 return base64.b64encode(image_bytes).decode("utf-8")

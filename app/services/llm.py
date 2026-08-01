@@ -2,7 +2,7 @@
 
 import json
 
-import requests
+import httpx
 from fastapi import HTTPException
 from PIL import Image
 
@@ -31,15 +31,13 @@ class LLMService:
         self.model = model
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
 
-    def analyze_image(self, image: Image.Image, extraction_prompt: str) -> dict:
+    async def analyze_image(self, image: Image.Image, extraction_prompt: str) -> dict:
         """
         Send image to LLM for analysis using tool calling.
         Returns dict with 'prompt' and 'status' fields.
         """
         resized_image = resize_image_for_llm(image)
         base64_image = encode_image_to_base64(resized_image)
-
-        tools = [GENERATE_IMAGE_TOOL]
 
         payload = {
             "messages": [
@@ -52,32 +50,28 @@ class LLMService:
                     "content": [
                         {
                             "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{base64_image}"
-                            },
+                            "image_url": {"url": f"data:image/png;base64,{base64_image}"},
                         },
                         {"type": "text", "text": extraction_prompt},
                     ],
                 },
             ],
-            "tools": tools,
+            "tools": [GENERATE_IMAGE_TOOL],
             "tool_choice": {"type": "function", "function": {"name": "generate_image"}},
             "model": self.model,
         }
 
         headers = build_llm_headers(self.apikey)
 
-        response = requests.post(
-            f"{self.endpoint}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
+        async with httpx.AsyncClient(timeout=LLM_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                f"{self.endpoint}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
 
         if response.status_code != 200:
-            raise HTTPException(
-                status_code=500, detail=f"LLM API error: {response.text}"
-            )
+            raise HTTPException(status_code=500, detail=f"LLM API error: {response.text}")
 
         result = response.json()
         message = result["choices"][0]["message"]
@@ -93,11 +87,9 @@ class LLMService:
                     "error_reason": arguments.get("error_reason"),
                 }
 
-        raise HTTPException(
-            status_code=500, detail="LLM did not return a valid tool call"
-        )
+        raise HTTPException(status_code=500, detail="LLM did not return a valid tool call")
 
-    def list_models(self) -> list[str]:
+    async def list_models(self) -> list[str]:
         """
         Fetch available models from the LLM endpoint.
         Returns list of model names.
@@ -109,33 +101,37 @@ class LLMService:
         if not self.endpoint.endswith("/api/v1"):
             models_endpoint = self.endpoint.rstrip("/") + "/models"
 
-        response = requests.get(models_endpoint, headers=headers, timeout=10)
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(models_endpoint, headers=headers)
 
-        if response.ok:
-            data = response.json()
-            models = []
-            if isinstance(data, list):
-                models = data
-            elif isinstance(data, dict):
-                if "models" in data and isinstance(data["models"], list):
-                    models = data["models"]
-                elif "data" in data and isinstance(data["data"], list):
-                    models = data["data"]
-            return _extract_model_names(models)
-        else:
-            # Try alternative endpoint format
-            alt_endpoint = self.endpoint.replace("/api/v1", "").rstrip("/") + "/models"
-            alt_response = requests.get(alt_endpoint, headers=headers, timeout=10)
-
-            if alt_response.ok:
-                data = alt_response.json()
-                models = data.get("models") or data.get("data") or []
+            if response.is_success:
+                data = response.json()
+                models = []
+                if isinstance(data, list):
+                    models = data
+                elif isinstance(data, dict):
+                    if "models" in data and isinstance(data["models"], list):
+                        models = data["models"]
+                    elif "data" in data and isinstance(data["data"], list):
+                        models = data["data"]
                 return _extract_model_names(models)
             else:
-                raise HTTPException(
-                    status_code=502,
-                    detail=f"Failed to fetch models from LLM endpoint: {alt_response.status_code} {alt_response.text}",
-                )
+                # Try alternative endpoint format
+                alt_endpoint = self.endpoint.replace("/api/v1", "").rstrip("/") + "/models"
+                alt_response = await client.get(alt_endpoint, headers=headers)
+
+                if alt_response.is_success:
+                    data = alt_response.json()
+                    models = data.get("models") or data.get("data") or []
+                    return _extract_model_names(models)
+                else:
+                    raise HTTPException(
+                        status_code=502,
+                        detail=(
+                            f"Failed to fetch models from LLM endpoint: "
+                            f"{alt_response.status_code} {alt_response.text}"
+                        ),
+                    )
 
 
 def _extract_model_names(models: list) -> list[str]:

@@ -23,12 +23,10 @@ def profile_manager(temp_profiles_dir: Path) -> ProfileManager:
 
 
 def _create_test_profile(manager: ProfileManager, name: str) -> None:
-    """Helper to create a test profile directory with required files."""
+    """Helper to create a test profile directory with the required file."""
     profile_dir = manager.profiles_dir / name
     profile_dir.mkdir(parents=True, exist_ok=True)
     (profile_dir / "extraction_prompt.txt").write_text("Test prompt")
-    (profile_dir / "workflow.json").write_text("{}")
-    (profile_dir / "mappings.json").write_text("{}")
 
 
 class TestProfileManager:
@@ -49,8 +47,6 @@ class TestProfileManager:
         _create_test_profile(profile_manager, "test_profile")
         content = profile_manager.get_content("test_profile")
         assert content["extraction_prompt.txt"] == "Test prompt"
-        assert content["workflow.json"] == "{}"
-        assert content["mappings.json"] == "{}"
 
     def test_get_content_nonexistent(self, profile_manager: ProfileManager) -> None:
         with pytest.raises(HTTPException) as exc_info:
@@ -60,12 +56,14 @@ class TestProfileManager:
     def test_save_files(self, profile_manager: ProfileManager) -> None:
         files = {
             "extraction_prompt.txt": "New prompt",
-            "workflow.json": '{"nodes": []}',
             "mappings.json": None,  # None means don't create
         }
         profile_manager.save_files("new_profile", files)
         assert (profile_manager.profiles_dir / "new_profile").exists()
-        assert (profile_manager.profiles_dir / "new_profile" / "extraction_prompt.txt").read_text() == "New prompt"
+        assert (
+            profile_manager.profiles_dir / "new_profile" / "extraction_prompt.txt"
+        ).read_text() == "New prompt"
+        assert not (profile_manager.profiles_dir / "new_profile" / "mappings.json").exists()
 
     def test_delete(self, profile_manager: ProfileManager) -> None:
         _create_test_profile(profile_manager, "to_delete")
@@ -86,7 +84,9 @@ class TestProfileManager:
         _create_test_profile(profile_manager, "source")
         profile_manager.duplicate("source", "duplicate")
         assert (profile_manager.profiles_dir / "duplicate").exists()
-        assert (profile_manager.profiles_dir / "duplicate" / "extraction_prompt.txt").read_text() == "Test prompt"
+        assert (
+            profile_manager.profiles_dir / "duplicate" / "extraction_prompt.txt"
+        ).read_text() == "Test prompt"
 
     def test_ensure_exists_raises(self, profile_manager: ProfileManager) -> None:
         with pytest.raises(HTTPException) as exc_info:
@@ -98,3 +98,16 @@ class TestProfileManager:
         with pytest.raises(HTTPException) as exc_info:
             profile_manager.ensure_not_exists("existing")
         assert exc_info.value.status_code == 400
+
+    def test_create_zip(self, profile_manager: ProfileManager) -> None:
+        _create_test_profile(profile_manager, "zippable")
+        zip_path = profile_manager.create_zip("zippable")
+        assert Path(zip_path).exists()
+        Path(zip_path).unlink()
+
+    def test_create_all_zip(self, profile_manager: ProfileManager) -> None:
+        _create_test_profile(profile_manager, "profile1")
+        _create_test_profile(profile_manager, "profile2")
+        zip_path = profile_manager.create_all_zip()
+        assert Path(zip_path).exists()
+        Path(zip_path).unlink()

@@ -1,6 +1,8 @@
 """Configuration and constants for the application."""
 
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -12,9 +14,38 @@ WORKFLOWS_DIR = BASE_DIR / "workflows"
 OUTPUT_DIR = BASE_DIR / "output"
 CONFIG_FILE = BASE_DIR / "config.json"
 
+_DEFAULT_CONFIG: dict[str, Any] = {
+    "server": {"host": "0.0.0.0", "port": 8380},
+    "providers": {
+        "comfyui_endpoint": "http://localhost:8188",
+        "llm_endpoint": "http://localhost:8000/api/v1",
+        "llm_apikey": "",
+        "llm_model": "",
+    },
+}
+
+
+def _load_config() -> dict[str, Any]:
+    """Load configuration from file, merging over defaults. Falls back to defaults."""
+    defaults = json.loads(json.dumps(_DEFAULT_CONFIG))
+    if not CONFIG_FILE.exists():
+        return defaults
+    try:
+        with open(CONFIG_FILE) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        raise RuntimeError(f"Invalid or unreadable {CONFIG_FILE}: {e}") from e
+
+    for section, values in data.items():
+        if section in defaults and isinstance(defaults[section], dict):
+            defaults[section].update(values if isinstance(values, dict) else {})
+        else:
+            defaults[section] = values
+    return defaults
+
+
 # Load global configuration into mutable dict
-with open(CONFIG_FILE) as f:
-    _config: dict[str, Any] = json.load(f)
+_config: dict[str, Any] = _load_config()
 
 
 # LLM tool definition for image analysis
@@ -46,7 +77,11 @@ GENERATE_IMAGE_TOOL = {
 }
 
 # Default system prompt for tool calling
-DEFAULT_SYSTEM_PROMPT = "You are an image analysis assistant specialized in extracting image generation prompts. Your task is to analyze the uploaded image and extract a detailed prompt for image generation. You MUST call the generate_image tool with your extracted prompt and status."
+DEFAULT_SYSTEM_PROMPT = (
+    "You are an image analysis assistant specialized in extracting image generation prompts. "
+    "Your task is to analyze the uploaded image and extract a detailed prompt for image generation. "
+    "You MUST call the generate_image tool with your extracted prompt and status."
+)
 
 # Constants
 MAX_LLM_IMAGE_PIXELS = 1_500_000
@@ -72,7 +107,9 @@ def get_server_config() -> dict[str, Any]:
 
 
 def save_providers(providers: dict[str, Any]) -> None:
-    """Save the providers section of the configuration to file and in memory."""
+    """Save the providers section of the configuration to file and in memory (atomic write)."""
     _config["providers"] = providers
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(_config, f, indent=4)
+    with tempfile.NamedTemporaryFile("w", dir=str(BASE_DIR), delete=False) as tf:
+        json.dump(_config, tf, indent=4)
+        temp_name = tf.name
+    os.replace(temp_name, CONFIG_FILE)

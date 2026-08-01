@@ -1,8 +1,75 @@
 // Profile editor logic
 
-import { DOM, PROFILE_OPERATIONS, state } from './state.js';
-import { loadProfileContent, handleApiResponse, downloadProfile } from './api.js';
-import { showPrompt, showConfirm, showError } from './ui.js';
+import { DOM, state } from './state.js';
+import { loadProfileContent, downloadProfile } from './api.js';
+import { refreshProfilesAndUI } from './refresh.js';
+import { executeOperation } from './editor.js';
+import { showError } from './ui.js';
+
+// Profile operation configurations
+const PROFILE_OPERATIONS = {
+    save: {
+        endpoint: '/api/profile-editor/profile',
+        method: 'POST',
+        successMsg: 'Profile saved successfully',
+        buildPayload: (name) => ({
+            name,
+            extraction_prompt: DOM.extractionPromptEditor.value,
+        }),
+        onsuccess: () => {
+            if (!state.editorOriginalNames.has(state.currentProfile)) {
+                refreshProfilesAndUI(populateEditorProfileList);
+            }
+        },
+    },
+    duplicate: {
+        endpoint: '/api/profile-editor/profile/duplicate',
+        method: 'POST',
+        successMsg: 'Profile duplicated successfully',
+        prompt: (name) => `Enter new name for duplicate of "${name}":`,
+        buildPayload: (name, newName) => ({ source_name: name, new_name: newName }),
+        onsuccess: () => refreshProfilesAndUI(populateEditorProfileList),
+    },
+    rename: {
+        endpoint: '/api/profile-editor/profile/rename',
+        method: 'POST',
+        successMsg: 'Profile renamed successfully',
+        prompt: (name) => `Enter new name for "${name}":`,
+        buildPayload: (name, newName) => ({ old_name: name, new_name: newName }),
+        onsuccess: (newName) => {
+            refreshProfilesAndUI(() => {
+                DOM.editorProfileName.textContent = newName;
+                DOM.profileSelect.value = newName;
+                populateEditorProfileList();
+            });
+        },
+    },
+    delete: {
+        endpoint: (name) => `/api/profile-editor/profile/${encodeURIComponent(name)}`,
+        method: 'DELETE',
+        successMsg: 'Profile deleted successfully',
+        confirm: (name) => `Are you sure you want to delete profile "${name}"? This action cannot be undone.`,
+        buildPayload: (name) => ({ name }),
+        onsuccess: () => {
+            state.currentProfile = null;
+            DOM.profileSelect.value = '';
+            state.editorProfileData = { extraction_prompt: '' };
+            DOM.editorProfileName.textContent = 'Select a profile';
+            DOM.saveProfileBtn.disabled = true;
+            DOM.duplicateProfileBtn.disabled = true;
+            DOM.renameProfileBtn.disabled = true;
+            DOM.deleteProfileBtn.disabled = true;
+            if (DOM.editorTabs) DOM.editorTabs.style.display = 'none';
+            DOM.editorContent.style.display = 'none';
+            DOM.editorPlaceholder.style.display = 'block';
+            DOM.extractionPromptEditor.value = '';
+            document.querySelectorAll('.profile-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            refreshProfilesAndUI(populateEditorProfileList);
+        },
+    },
+};
 
 /**
  * Populate editor profile list from already-loaded data.
@@ -93,71 +160,19 @@ export async function selectProfileForEdit(profileName) {
     await loadProfileContentIntoEditor(profileName);
 }
 
-/**
- * Execute a profile operation.
- * @param {string} operationKey - Operation key (save, duplicate, rename, delete)
- */
-export async function executeProfileOperation(operationKey) {
-    if (!state.currentProfile) return;
-
-    const op = PROFILE_OPERATIONS[operationKey];
-
-    // Handle confirmation dialog
-    if (op.confirm && !(await showConfirm(op.confirm(state.currentProfile)))) {
-        return;
-    }
-
-    // Handle name prompt
-    let newName = null;
-    if (op.prompt) {
-        newName = await showPrompt(op.prompt(state.currentProfile));
-        if (newName === null) return;
-        if (newName === state.currentProfile) {
-            showError('A profile with this name already exists');
-            return;
-        }
-    }
-
-    const payload = op.buildPayload(state.currentProfile, newName);
-    const endpoint = typeof op.endpoint === 'function' ? op.endpoint(state.currentProfile) : op.endpoint;
-
-    let response;
-    switch (op.method) {
-        case 'POST':
-            response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            break;
-        case 'DELETE':
-            response = await fetch(endpoint, { method: 'DELETE' });
-            break;
-    }
-
-    const success = await handleApiResponse(response, op.successMsg, op.successMsg);
-    if (success && op.onsuccess) {
-        await op.onsuccess(newName);
-        // Special handling for duplicate: select the new profile
-        if (operationKey === 'duplicate' && newName) {
-            selectProfileForEdit(newName);
-        }
-    }
-}
-
 // Profile operation handlers
 export async function saveCurrentProfile() {
-    await executeProfileOperation('save');
+    await executeOperation(PROFILE_OPERATIONS, 'save', state.currentProfile, 'profile', selectProfileForEdit);
 }
 
 export async function duplicateCurrentProfile() {
-    await executeProfileOperation('duplicate');
+    await executeOperation(PROFILE_OPERATIONS, 'duplicate', state.currentProfile, 'profile', selectProfileForEdit);
 }
 
 export async function renameCurrentProfile() {
-    await executeProfileOperation('rename');
+    await executeOperation(PROFILE_OPERATIONS, 'rename', state.currentProfile, 'profile', selectProfileForEdit);
 }
 
 export async function deleteCurrentProfile() {
-    await executeProfileOperation('delete');
+    await executeOperation(PROFILE_OPERATIONS, 'delete', state.currentProfile, 'profile', selectProfileForEdit);
 }

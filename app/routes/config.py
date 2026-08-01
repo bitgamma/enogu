@@ -5,17 +5,20 @@ from fastapi import APIRouter, HTTPException
 from app.config import get_providers, save_providers
 from app.models import ConfigResponse, ModelListResponse, ProviderSaveResponse
 from app.services.llm import create_llm_service
+from app.utils import handle_api_errors
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
 
 @router.get("/providers", response_model=ConfigResponse)
+@handle_api_errors
 async def get_config_providers() -> ConfigResponse:
     """Get the providers section of the configuration."""
     return ConfigResponse(providers=get_providers())
 
 
 @router.post("/providers", response_model=ProviderSaveResponse)
+@handle_api_errors
 async def save_config_providers(request: dict) -> ProviderSaveResponse:
     """Save/update the providers section of the configuration. Applies immediately and persists to file."""
     providers = request.get("providers", {})
@@ -35,6 +38,7 @@ async def save_config_providers(request: dict) -> ProviderSaveResponse:
 
 
 @router.get("/models", response_model=ModelListResponse)
+@handle_api_errors
 async def get_llm_models() -> ModelListResponse:
     """Fetch available LLM models from the configured LLM endpoint."""
     providers = get_providers()
@@ -44,5 +48,5 @@ async def get_llm_models() -> ModelListResponse:
         raise HTTPException(status_code=400, detail="LLM endpoint not configured")
 
     llm_service = create_llm_service()
-    models = llm_service.list_models()
+    models = await llm_service.list_models()
     return ModelListResponse(models=models)

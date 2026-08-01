@@ -171,16 +171,17 @@ export function showPrompt(message, defaultValue = '') {
 /**
  * Shows a custom confirmation dialog.
  * @param {string} message - Confirmation message
+ * @param {string} [okLabel] - Label for the confirm button (default 'Delete')
  * @returns {Promise<boolean>} True if confirmed
  */
-export function showConfirm(message) {
+export function showConfirm(message, okLabel = 'Delete') {
     const messageEl = document.createElement('p');
     messageEl.className = 'dialog-message';
     messageEl.textContent = message;
 
     return showDialog('Confirm', messageEl, [
         { label: 'Cancel', action: () => false },
-        { label: 'Delete', primary: true, action: () => true }
+        { label: okLabel, primary: true, action: () => true }
     ]);
 }
 

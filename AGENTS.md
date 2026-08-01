@@ -16,40 +16,49 @@ imagegen/
 │   ├── models.py       # Pydantic models for API request/response validation
 │   ├── routes/         # API route handlers
 │   │   ├── __init__.py
-│   │   ├── profiles.py     # Profile CRUD endpoints
-│   │   ├── generation.py   # /api/analyze, /api/generate
+│   │   ├── generation.py   # /api/analyze, /api/generate, /api/profiles, /api/workflows
+│   │   ├── gallery.py      # /api/gallery/* (saved generated images)
+│   │   ├── profiles.py     # /api/profile-editor/* (prompt profile CRUD)
+│   │   ├── workflows.py    # /api/workflow-editor/* (workflow CRUD)
 │   │   └── config.py       # /api/config/* endpoints
-│   ├── services/       # Business logic services
+│   ├── services/       # Business logic services (HTTP-independent, testable)
 │   │   ├── __init__.py
-│   │   ├── llm.py          # LLMService for image analysis
-│   │   └── comfyui.py      # ComfyUIService for workflow execution
+│   │   ├── llm.py          # LLMService for image analysis (async httpx)
+│   │   ├── comfyui.py      # ComfyUIService for workflow execution (async httpx)
+│   │   ├── profile.py      # Profile loading + extraction-prompt cache
+│   │   └── workflow.py     # Workflow loading + mappings application
 │   └── utils/          # Shared utilities
 │       ├── __init__.py
-│       ├── files.py        # ProfileManager, file I/O helpers
+│       ├── files.py        # FileSetManager base + ProfileManager/WorkflowManager
 │       ├── image.py        # Image processing (resize, encode)
 │       ├── validation.py   # Validation, parameter mapping, decorators
-│       └── exceptions.py   # Custom exception classes
 ├── config.json         # Global configuration (created from template)
 ├── config.template.json # Configuration template file
 ├── pyproject.toml      # Project dependencies and configuration
 ├── tests/              # Unit tests
-│   ├── __init__.py
 │   ├── test_image.py
 │   ├── test_profile_manager.py
-│   └── test_validation.py
+│   ├── test_workflow_manager.py
+│   ├── test_validation.py
+│   ├── test_llm.py
+│   └── test_comfyui.py
 ├── frontend/           # Static frontend files (ES modules)
-│   ├── index.html      # Main HTML page
+│   ├── index.html
 │   ├── main.js         # Entry point, navigation handlers, event binding
-│   ├── api.js          # API call functions with error handling
+│   ├── api.js          # API call functions with unified error handling
 │   ├── state.js        # Centralized state management and DOM registry
-│   ├── ui.js           # UI operations, view switching, custom dialog components
+│   ├── ui.js           # UI operations and custom dialog components
 │   ├── history.js      # Image history management
-│   ├── profile-editor.js # Profile editor logic
+│   ├── profile-editor.js # Profile editor logic + profile operation config
+│   ├── workflow-editor.js # Workflow editor logic + workflow operation config
 │   ├── config-editor.js  # Configuration editor logic
-│   └── styles.css      # CSS styling
-└── profiles/           # Profile configurations
-    └── <profile_name>/ # Individual profile directories
-        ├── extraction_prompt.txt  # LLM analysis prompt
+│   ├── refresh.js      # Shared data-loading / refresh helpers
+│   ├── editor.js       # Shared editor operation executor
+│   └── styles.css
+├── profiles/           # Prompt profiles (LLM analysis prompts only)
+│   └── <profile_name>/extraction_prompt.txt
+└── workflows/          # ComfyUI workflows (separate from profiles)
+    └── <workflow_name>/
         ├── workflow.json    # ComfyUI workflow definition
         └── mappings.json    # Parameter mappings
 ```
@@ -65,27 +74,32 @@ The backend follows a clear layered architecture:
 3. **Utils** (`app/utils/`): Shared utilities - file I/O, image processing, validation helpers
 4. **Config** (`app/config.py`): Configuration management - in-memory mutable config with file persistence
 
+Business logic (profile/workflow loading, mappings application, caches) lives in `services/`, not routes.
+
 ### Service Pattern
 
-External integrations are encapsulated in service classes:
+External integrations and business logic are encapsulated in service modules:
 
-- **`LLMService`** (`app/services/llm.py`): Handles LLM API interactions for image analysis and model listing
-- **`ComfyUIService`** (`app/services/comfyui.py`): Handles ComfyUI workflow execution, polling, and image extraction
+- **`LLMService`** (`services/llm.py`): Async `httpx` client for image analysis (tool calling) and model listing
+- **`ComfyUIService`** (`services/comfyui.py`): Async `httpx` client for workflow queueing, polling, and image extraction
+- **`services/profile.py`**: `get_profile()` (cached extraction prompt) + `invalidate_profile_cache()`
+- **`services/workflow.py`**: `get_workflow()`, `load_mappings()`, `get_workflow_with_mappings()`
 
-Services are instantiated via factory functions (`create_llm_service()`, `create_comfyui_service()`) that read from the global configuration.
+Services are instantiated via factory functions (`create_llm_service()`, `create_comfyui_service()`) that read from the global configuration. External HTTP calls use `httpx` (async) so they don't block the event loop.
 
 ### Configuration Management
 
 - Configuration is loaded into a mutable dict (`_config`) at import time
-- `save_providers()` updates both in-memory state and persists to file
+- Missing/partial config falls back to defaults defined in `app/config.py`
+- `save_providers()` writes atomically (temp file + `os.replace`) and updates both memory and file
 - Constants are defined in `app/config.py` (replaces magic numbers)
 - Pydantic models provide request validation at the route layer
 
 ### Error Handling
 
-- Custom exception classes in `app/utils/exceptions.py` (`AppException`, `ProfileNotFoundError`, `LLMError`, etc.)
-- Global exception handlers in `app/main.py` convert exceptions to consistent JSON responses
-- `@handle_api_errors` decorator catches non-HTTP exceptions in route handlers
+- Routes raise `HTTPException` directly
+- `@handle_api_errors` decorator (in `app/utils/validation.py`) catches non-HTTP exceptions, logs them, and returns a generic 500 JSON response
+- Global exception handlers in `app/main.py` convert validation errors and unexpected exceptions to consistent JSON responses
 
 ## Core Components
 
@@ -95,115 +109,54 @@ Services are instantiated via factory functions (`create_llm_service()`, `create
 
 Route modules handle HTTP requests and responses:
 
-- **`profiles.py`**: Profile CRUD endpoints (`/api/profile-editor/*`)
-- **`generation.py`**: Image analysis and generation (`/api/analyze`, `/api/generate`)
-- **`config.py`**: Configuration management (`/api/config/*`)
-
-Each route module defines a FastAPI `APIRouter` with appropriate prefix and tags.
+- **`generation.py`**: `/api/analyze`, `/api/generate`, plus `/api/profiles` and `/api/workflows` listing
+- **`gallery.py`**: Saved image listing, serving, deletion (`/api/gallery/*`)
+- **`profiles.py`**: Prompt profile CRUD (`/api/profile-editor/*`)
+- **`workflows.py`**: Workflow CRUD (`/api/workflow-editor/*`)
+- **`config.py`**: Provider configuration (`/api/config/*`)
 
 #### Services (`app/services/`)
 
-Service classes encapsulate external API interactions:
-
-- **`LLMService.analyze_image()`**: Sends image to LLM using tool calling
-- **`LLMService.list_models()`**: Fetches available LLM models
-- **`ComfyUIService.execute_async()`**: Queues workflow, polls for completion, extracts result
+- **`LLMService.analyze_image()`**: Sends image to LLM using tool calling (async)
+- **`LLMService.list_models()`**: Fetches available LLM models (async)
+- **`ComfyUIService.execute()`**: Queues workflow, polls for completion, extracts result (async)
+- **`profile.get_profile()`**: Loads extraction prompt with a cache
+- **`workflow.get_workflow_with_mappings()`**: Loads workflow and applies parameter mappings
 
 #### Utils (`app/utils/`)
 
-Shared utilities organized by concern:
-
-- **`files.py`**: `ProfileManager` class for profile file operations
+- **`files.py`**: `FileSetManager` generic base + `ProfileManager`/`WorkflowManager` subclasses
 - **`image.py`**: `resize_image_for_llm()`, `encode_image_to_base64()`
-- **`validation.py`**: `validate_profile_name()`, `apply_mappings()`, `PARAM_HANDLERS`, decorators
-- **`exceptions.py`**: Custom exception hierarchy
+- **`validation.py`**: `validate_name()`, `validate_name_or_raise()`, `validate_filename_or_raise()`, `apply_mappings()`, `PARAM_HANDLERS`, `handle_api_errors()`, `build_llm_headers()`, `validate_json()`
 
 #### Models (`app/models.py`)
 
-Pydantic models for API validation:
-
-- `ProviderConfig`, `ProfileSaveRequest`, `ProfileDuplicateRequest`, etc.
-- Response models: `AnalyzeResponse`, `GenerateResponse`, `ModelListResponse`, etc.
-
-#### Configuration (`app/config.py`)
-
-Central configuration module:
-
-- Constants: `MAX_LLM_IMAGE_PIXELS`, `LLM_TIMEOUT_SECONDS`, `COMFYUI_POLL_TIMEOUT_SECONDS`, etc.
-- Functions: `get_config()`, `get_providers()`, `save_providers()`
+Pydantic models for API validation and responses: `ProviderConfig`, `ProfileSaveRequest`, `WorkflowSaveRequest`, `GalleryItem`, `AnalyzeResponse`, `GenerateResponse`, etc.
 
 ### Frontend
 
-The frontend follows a modular ES module architecture with separation of concerns across multiple files:
+The frontend is a modular ES module architecture. Key modules:
 
-#### Files
+1. **index.html**: Three main views (Generate, Editor, Settings) plus a Gallery view.
+2. **main.js**: Entry point - navigation, event binding, generation flow, action-button wiring (keyed by `ACTION_BUTTONS` config, not array index).
+3. **api.js**: API calls with unified `apiCall`/`fetchJson` error handling.
+4. **state.js**: `DOM` registry, `RESOLUTIONS`, `state`, `ACTION_BUTTONS`, `generateRandomSeed()`.
+5. **ui.js**: View/screen switching, notifications, custom dialog components (`showPrompt`, `showConfirm`), `createAsyncHandler`.
+6. **refresh.js**: Shared `loadProfilesAndUI`/`loadWorkflowsAndUI`/`refreshProfilesAndUI`/`refreshWorkflowsAndUI` - avoids circular imports between `main.js` and the editors.
+7. **editor.js**: Shared `executeOperation()` used by both profile and workflow editors.
+8. **profile-editor.js** / **workflow-editor.js**: Editor logic + operation configs (moved out of `state.js`).
+9. **config-editor.js**: Config loading/saving, LLM model refresh.
 
-1. **index.html**: The main user interface with three navigation views:
-   - **Generate view**: Three-screen flow (Profile Selection & Image Upload, Processing, Result)
-   - **Profile Editor view**: Sidebar with profile list + main area with tabbed editors for `extraction_prompt.txt`, `workflow.json`, `mappings.json`
-   - **Settings view**: Configuration editor for providers (ComfyUI endpoint, LLM endpoint, API key, model selection)
+### Profiles vs. Workflows
 
-2. **main.js**: Entry point - DOM initialization, navigation handlers, event binding
-    - Profile loading and selection
-    - Image upload handling (drag-and-drop, file input, mobile camera)
-    - Image analysis and generation flow coordination
-    - View switching handlers (`showGenerateView`, `showProfileEditor`, `showConfigEditor`)
-    - Action button setup with async handler wrappers
+Profiles and workflows are now **separate concepts**:
 
-3. **api.js**: API call functions with standardized error handling
-   - `apiCall()`: Generic HTTP helper with response validation
-   - `analyzeImageAPI()`, `generateImageAPI()`: Core generation endpoints
-   - `loadProfiles()`, `loadConfig()`, `saveConfig()`: Data management
-   - `loadProfileContent()`, `saveProfile()`, `duplicateProfile()`, `renameProfile()`, `deleteProfile()`: Profile CRUD
-   - `downloadProfile()`, `downloadAllProfiles()`: Profile export
-   - `handleApiResponse()`: Response handler for profile operations
+- **Profiles** (`profiles/`) contain only `extraction_prompt.txt` - the prompt template for LLM image analysis.
+- **Workflows** (`workflows/`) contain `workflow.json` (ComfyUI workflow) + `mappings.json` (parameter mappings).
 
-4. **state.js**: Centralized state management and DOM registry
-   - `DOM`: Registry of all DOM element references
-   - `RESOLUTIONS`: Resolution configuration map
-   - `state`: Mutable application state object (profile selection, image handling, processing state, history, editor state, config)
-   - `ACTION_BUTTONS`: Configuration array for async button handlers
-   - `PROFILE_OPERATIONS`: Configuration object defining save/duplicate/rename/delete operations
-   - `generateRandomSeed()`: Seed generation utility
+### Parameter Mappings
 
-5. **ui.js**: UI operations and custom dialog components
-    - `switchView()`: Main view switching (Generate/Profile Editor/Settings)
-    - `showScreen()`, `resetProgress()`: Screen navigation and progress management
-    - `notify()`, `showError()`, `showSuccess()`: Unified notification system
-    - `showPrompt()`, `showConfirm()`: Custom dialog components (replacing native `prompt`/`confirm`)
-    - `populateSelect()`: Select element population helper
-    - `setupMobileCameraButton()`: Mobile device detection and camera button visibility
-    - `resetState()`: Application state reset
-    - `createAsyncHandler()`: Async button handler wrapper with loading/error/disabled state management
-
-6. **history.js**: Image history management
-   - `addToHistory()`: Add images to history (max 10), deduplication
-   - `removeFromHistory()`: Remove images by index
-   - `renderHistory()`: Render history thumbnails with click-to-restore
-
-7. **profile-editor.js**: Profile editor logic
-    - `populateEditorProfileList()`: Render sidebar profile list
-    - `selectProfileForEdit()`: Load profile content into editors
-    - `switchEditorTab()`: Tab switching for extraction_prompt/workflow/mappings
-    - `executeProfileOperation()`: Generic operation executor for save/duplicate/rename/delete
-    - `saveCurrentProfile()`, `duplicateCurrentProfile()`, `renameCurrentProfile()`, `deleteCurrentProfile()`: Operation handlers
-
-8. **config-editor.js**: Configuration editor logic
-   - `loadConfigView()`: Load providers configuration into form fields
-   - `saveConfigView()`: Validate and save configuration
-   - `refreshLLMModels()`: Fetch and populate LLM model list
-
-9. **styles.css**: Visual styling and layout
-
-### Profiles
-
-Profiles are configuration units that define:
-
-- **extraction_prompt.txt**: Prompt template for image analysis sent to the LLM
-- **workflow.json**: ComfyUI workflow definition
-- **mappings.json**: Parameter mappings for dynamic workflow configuration
-
-Each profile is stored in its own directory under `profiles/`. The mappings file uses the format:
+The `mappings.json` format:
 ```json
 {
     "prompt": "node_id_for_prompt",
@@ -214,33 +167,6 @@ Each profile is stored in its own directory under `profiles/`. The mappings file
 }
 ```
 
-### Configuration
-
-#### Global Configuration (config.json)
-
-```json
-{
-    "server": {
-        "host": "0.0.0.0",
-        "port": 8380
-    },
-    "providers": {
-        "comfyui_endpoint": "http://localhost:8188",
-        "llm_endpoint": "http://localhost:8000/api/v1",
-        "llm_apikey": "your-api-key",
-        "llm_model": "user.Qwen3.5-35B-A3B-NoThinking"
-    }
-}
-```
-
-- **server.host**: Listening host
-- **server.port**: Listening port
-- **providers.comfyui_endpoint**: ComfyUI server endpoint
-- **providers.llm_endpoint**: LLM API endpoint
-- **providers.llm_apikey**: API key for LLM access
-- **providers.llm_model**: Model name for LLM
-- **providers.system_prompt** (optional): Custom system prompt for tool calling
-
 ## Data Flow
 
 ### Image Analysis Flow
@@ -248,10 +174,7 @@ Each profile is stored in its own directory under `profiles/`. The mappings file
 1. User uploads an image through the frontend
 2. Backend receives the image and resizes it for LLM processing (max 1.5MP)
 3. `LLMService.analyze_image()` sends image to LLM with the profile's extraction prompt and a tool definition
-4. LLM returns a tool call with `generate_image` function containing:
-   - `status`: "OK" or "NOK"
-   - `prompt`: The generation prompt (if status is "OK")
-   - `error_reason`: Error explanation (if status is "NOK")
+4. LLM returns a tool call with `generate_image` function containing `status`, `prompt`, `error_reason`
 5. Backend returns the prompt to the frontend
 
 ### Image Generation Flow
@@ -259,9 +182,9 @@ Each profile is stored in its own directory under `profiles/`. The mappings file
 1. User reviews/modifies the extracted prompt
 2. User selects aspect ratio and optional upscaling settings
 3. Backend loads workflow via `get_workflow_with_mappings()` which applies parameter mappings
-4. `ComfyUIService.execute_async()` queues the workflow and polls for completion
+4. `ComfyUIService.execute_async()` queues the workflow and polls for completion (async `httpx`)
 5. Generated image is retrieved from ComfyUI and returned as base64
-6. Image is displayed in the frontend and added to history
+6. Image is displayed in the frontend and added to history; optionally saved to the gallery
 
 ## API Endpoints
 
@@ -269,15 +192,27 @@ Each profile is stored in its own directory under `profiles/`. The mappings file
 |--------|----------|-------------|
 | GET | `/` | Serves the frontend application |
 | GET | `/api/profiles` | Lists all available profiles |
+| GET | `/api/workflows` | Lists all available workflows |
 | POST | `/api/analyze` | Analyzes an uploaded image and returns a generation prompt |
 | POST | `/api/generate` | Generates an image from a prompt using ComfyUI |
-| GET | `/api/profile-editor/profile/{name}` | Gets full profile content for editing |
+| GET | `/api/gallery` | Lists saved generated images |
+| GET | `/api/gallery/{filename}` | Downloads a saved image |
+| DELETE | `/api/gallery` | Deletes all saved images |
+| DELETE | `/api/gallery/{filename}` | Deletes a saved image |
+| GET | `/api/profile-editor/profile/{name}` | Gets profile content |
 | POST | `/api/profile-editor/profile` | Creates or updates a profile |
 | POST | `/api/profile-editor/profile/duplicate` | Duplicates a profile |
 | DELETE | `/api/profile-editor/profile/{name}` | Deletes a profile |
 | POST | `/api/profile-editor/profile/rename` | Renames a profile |
 | GET | `/api/profile-editor/download/{name}` | Downloads a profile as ZIP |
 | GET | `/api/profile-editor/download-all` | Downloads all profiles as ZIP |
+| GET | `/api/workflow-editor/workflow/{name}` | Gets workflow content |
+| POST | `/api/workflow-editor/workflow` | Creates or updates a workflow |
+| POST | `/api/workflow-editor/workflow/duplicate` | Duplicates a workflow |
+| DELETE | `/api/workflow-editor/workflow/{name}` | Deletes a workflow |
+| POST | `/api/workflow-editor/workflow/rename` | Renames a workflow |
+| GET | `/api/workflow-editor/download/{name}` | Downloads a workflow as ZIP |
+| GET | `/api/workflow-editor/download-all` | Downloads all workflows as ZIP |
 | GET | `/api/config/providers` | Gets providers configuration |
 | POST | `/api/config/providers` | Updates providers configuration (applies immediately) |
 | GET | `/api/config/models` | Fetches available LLM models |
@@ -291,9 +226,12 @@ python -m pytest tests/ -v
 ```
 
 Test modules:
-- `test_validation.py`: Profile name validation, parameter mapping
+- `test_validation.py`: Name validation, parameter mapping
 - `test_image.py`: Image resizing and base64 encoding
 - `test_profile_manager.py`: Profile CRUD operations
+- `test_workflow_manager.py`: Workflow CRUD operations
+- `test_llm.py`: LLM service tool-call parsing and model listing (mocked `httpx`)
+- `test_comfyui.py`: ComfyUI queue/poll/image extraction (mocked `httpx`)
 
 ## Linting
 
@@ -308,7 +246,7 @@ ruff format .
 
 - **FastAPI**: Async web framework for the API
 - **Uvicorn**: ASGI server for running the application
-- **Requests**: HTTP client for calling LLM and ComfyUI APIs
+- **httpx**: Async HTTP client for calling LLM and ComfyUI APIs
 - **Pillow**: Image manipulation and resizing
 - **python-multipart**: Handling file uploads in forms
 - **Pydantic**: Request/response validation
@@ -329,9 +267,9 @@ ruff check .
 ruff format .
 ```
 
-## Environment Variables
+## Security Notes
 
-The application reads configuration from `config.json` rather than environment variables. Profile configurations should be secured appropriately when deploying.
+This is a local/LAN toy project. **There is no authentication** on any endpoint, including the config endpoints that read/write API keys. CORS is wide open (`allow_origins=["*"]`, no credentials). If deployed beyond a trusted LAN, add authentication and restrict CORS. Filenames and profile/workflow names are validated against directory-traversal patterns.
 
 ## Running in Production
 
@@ -339,8 +277,7 @@ For production deployment:
 
 1. Ensure ComfyUI is running and accessible
 2. Create `config.json` from `config.template.json` with production endpoints and secure API keys
-3. Configure profiles with appropriate workflows and prompts
+3. Configure profiles and workflows appropriately
 4. Run the application with a production ASGI server (e.g., `uvicorn app.main:app --host 0.0.0.0 --port 8000`)
-5. Set up proper CORS policies if needed
-6. Consider adding authentication for sensitive endpoints
-7. Use a reverse proxy (nginx, Apache) for SSL termination and additional security
+5. Add authentication for sensitive endpoints
+6. Use a reverse proxy (nginx, Apache) for SSL termination and additional security

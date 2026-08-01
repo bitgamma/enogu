@@ -1,6 +1,5 @@
 """Image generation routes."""
 
-import copy
 import io
 import time
 
@@ -10,129 +9,28 @@ from app.config import OUTPUT_DIR, PROFILES_DIR, WORKFLOWS_DIR
 from app.models import AnalyzeResponse, GenerateResponse
 from app.services.comfyui import create_comfyui_service
 from app.services.llm import create_llm_service
-from app.utils import (
-    PARAM_HANDLERS,
-    handle_api_errors,
-    read_file_content,
-)
+from app.services.profile import get_profile
+from app.services.workflow import get_workflow_with_mappings
+from app.utils import ProfileManager, WorkflowManager, handle_api_errors
 from app.utils.image import Image
 
 router = APIRouter(prefix="/api", tags=["generation"])
 
 
-def get_profile(profile_name: str) -> dict:
-    """Load a profile configuration by name (extraction prompt only)."""
-    profile_settings = {
-        "name": profile_name,
-    }
-
-    # Load extraction prompt from profile directory
-    prompt_file_path = PROFILES_DIR / profile_name / "extraction_prompt.txt"
-    extraction_prompt = read_file_content(prompt_file_path, strip=True)
-    if extraction_prompt is None:
-        raise HTTPException(status_code=404, detail="Prompt file extraction_prompt.txt not found")
-    profile_settings["extraction_prompt"] = extraction_prompt
-
-    return profile_settings
+@router.get("/profiles")
+@handle_api_errors
+async def list_profiles() -> dict:
+    """List all available profiles."""
+    manager = ProfileManager(PROFILES_DIR)
+    return {"profiles": manager.list_profiles()}
 
 
-def load_mappings(workflow_name: str) -> dict:
-    """Load parameter mappings from mappings.json in the workflow directory."""
-    mappings_path = WORKFLOWS_DIR / workflow_name / "mappings.json"
-    return read_file_content(mappings_path, as_json=True) or {}
-
-
-def apply_mappings(
-    workflow: dict,
-    mappings: dict,
-    prompt: str,
-    width: int,
-    height: int,
-    seed: int,
-    upscale_switch: bool,
-    upscale_resolution: int,
-) -> dict:
-    """Apply parameter mappings to the workflow."""
-    workflow = copy.deepcopy(workflow)
-    kwargs = {
-        "prompt": prompt,
-        "seed": seed,
-        "width": width,
-        "height": height,
-        "upscale_switch": upscale_switch,
-        "upscale_resolution": upscale_resolution,
-    }
-
-    for param_name, node_id in mappings.items():
-        if node_id not in workflow or param_name not in PARAM_HANDLERS:
-            continue
-
-        node = workflow[node_id]
-        node_inputs = node.get("inputs", {})
-
-        if param_name == "resolution":
-            if "width" in node_inputs:
-                node_inputs["width"] = width
-            if "height" in node_inputs:
-                node_inputs["height"] = height
-        else:
-            input_key, value_fn = PARAM_HANDLERS[param_name]
-            if input_key in node_inputs:
-                node_inputs[input_key] = value_fn(**kwargs)
-
-    return workflow
-
-
-def get_workflow(workflow_name: str) -> dict:
-    """Load a workflow configuration by name without applying mappings."""
-    from app.utils import ensure_file_exists
-
-    workflow_path = WORKFLOWS_DIR / workflow_name / "workflow.json"
-    ensure_file_exists(workflow_path, f"Workflow '{workflow_name}' not found")
-    return read_file_content(workflow_path, as_json=True) or {}
-
-
-def get_workflow_with_mappings(
-    workflow_name: str,
-    prompt: str,
-    width: int,
-    height: int,
-    seed: int = -1,
-    upscale_switch: bool = False,
-    upscale_resolution: int = 1024,
-) -> dict:
-    """Load workflow and apply parameter mappings."""
-    workflow = get_workflow(workflow_name)
-    mappings = load_mappings(workflow_name)
-    return apply_mappings(
-        workflow,
-        mappings,
-        prompt,
-        width,
-        height,
-        seed,
-        upscale_switch,
-        upscale_resolution,
-    )
-
-
-# Profile cache to avoid redundant file I/O
-_profile_cache: dict[str, dict] = {}
-
-
-def get_cached_profile(profile_name: str) -> dict:
-    """Load a profile configuration, using cache to avoid redundant file I/O."""
-    if profile_name not in _profile_cache:
-        _profile_cache[profile_name] = get_profile(profile_name)
-    return _profile_cache[profile_name]
-
-
-def invalidate_profile_cache(profile_name: str | None = None) -> None:
-    """Invalidate profile cache. If profile_name is provided, only invalidate that profile."""
-    if profile_name:
-        _profile_cache.pop(profile_name, None)
-    else:
-        _profile_cache.clear()
+@router.get("/workflows")
+@handle_api_errors
+async def list_workflows() -> dict:
+    """List all available workflows."""
+    manager = WorkflowManager(WORKFLOWS_DIR)
+    return {"workflows": manager.list_workflows()}
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
@@ -145,17 +43,15 @@ async def analyze_image(
     Analyze uploaded image and return generation prompt.
     Uses the specified profile configuration.
     """
-    profile_config = get_cached_profile(profile)
+    profile_config = get_profile(profile)
     image_data = await file.read()
     image = Image.open(io.BytesIO(image_data)).convert("RGB")
 
     llm_service = create_llm_service()
-    result = llm_service.analyze_image(image, profile_config["extraction_prompt"])
+    result = await llm_service.analyze_image(image, profile_config["extraction_prompt"])
 
     if result.get("status") != "OK":
         error_reason = result.get("error_reason", result.get("prompt", "Could not analyze image"))
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=400, detail=error_reason)
 
     return AnalyzeResponse(prompt=result["prompt"])
@@ -178,14 +74,12 @@ async def generate_image(
     Uses the specified workflow for generation.
     Optionally saves the image to the output folder.
     """
-    prompt_text = prompt
-
-    if not prompt_text:
+    if not prompt:
         raise HTTPException(status_code=400, detail="No prompt provided")
 
     workflow_data = get_workflow_with_mappings(
         workflow,
-        prompt_text,
+        prompt,
         width,
         height,
         seed,

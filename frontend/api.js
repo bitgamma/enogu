@@ -21,6 +21,21 @@ export async function apiCall(endpoint, body, options = {}, errorPrefix = 'Reque
 }
 
 /**
+ * Fetch JSON and throw on non-OK responses with the backend detail message.
+ * @param {string} endpoint - API endpoint URL
+ * @param {Object} options - Additional fetch options
+ * @returns {Promise<Object>} Parsed JSON response
+ */
+async function fetchJson(endpoint, options = {}) {
+    const response = await fetch(endpoint, options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.error_reason || data.detail || 'Request failed');
+    }
+    return data;
+}
+
+/**
  * Analyze an image via the /api/analyze endpoint.
  * @param {File} file - The image file to analyze
  * @param {string} profile - The profile name
@@ -73,8 +88,7 @@ export async function generateImageAPI(prompt, workflow, width, height, seed, up
  * @returns {Promise<Array>} List of profiles
  */
 export async function loadProfiles() {
-    const response = await fetch('/api/profiles');
-    const data = await response.json();
+    const data = await fetchJson('/api/profiles');
     return data?.profiles || [];
 }
 
@@ -83,8 +97,7 @@ export async function loadProfiles() {
  * @returns {Promise<Array>} List of workflows
  */
 export async function loadWorkflows() {
-    const response = await fetch('/api/workflows');
-    const data = await response.json();
+    const data = await fetchJson('/api/workflows');
     return data?.workflows || [];
 }
 
@@ -93,8 +106,7 @@ export async function loadWorkflows() {
  * @returns {Promise<Object>} Configuration object
  */
 export async function loadConfig() {
-    const response = await fetch('/api/config/providers');
-    const data = await response.json();
+    const data = await fetchJson('/api/config/providers');
     return data.providers || {};
 }
 
@@ -116,12 +128,7 @@ export async function saveConfig(config) {
  * @returns {Promise<Array>} List of model names
  */
 export async function refreshLLMModels() {
-    const response = await fetch('/api/config/models');
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to load LLM models');
-    }
-    const data = await response.json();
+    const data = await fetchJson('/api/config/models');
     return data.models || [];
 }
 
@@ -133,8 +140,7 @@ export async function refreshLLMModels() {
  * @returns {Promise<Object>} Profile content
  */
 export async function loadProfileContent(profileName) {
-    const response = await fetch(`/api/profile-editor/profile/${encodeURIComponent(profileName)}`);
-    return response.json();
+    return fetchJson(`/api/profile-editor/profile/${encodeURIComponent(profileName)}`);
 }
 
 /**
@@ -210,8 +216,7 @@ export function downloadAllProfiles() {
  * @returns {Promise<Object>} Workflow content
  */
 export async function loadWorkflowContent(workflowName) {
-    const response = await fetch(`/api/workflow-editor/workflow/${encodeURIComponent(workflowName)}`);
-    return response.json();
+    return fetchJson(`/api/workflow-editor/workflow/${encodeURIComponent(workflowName)}`);
 }
 
 /**
@@ -304,8 +309,7 @@ export async function handleApiResponse(response, successMessage, operationName)
  * @returns {Promise<Array>} List of gallery items
  */
 export async function loadGallery() {
-    const response = await fetch('/api/gallery');
-    const data = await response.json();
+    const data = await fetchJson('/api/gallery');
     return data?.images || [];
 }
 
