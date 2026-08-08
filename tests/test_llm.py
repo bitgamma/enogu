@@ -147,3 +147,69 @@ class TestLLMService:
             with pytest.raises(HTTPException) as exc_info:
                 _run(service.list_models())
         assert exc_info.value.status_code == 502
+
+    def test_generate_image_returns_b64_json(self) -> None:
+        image_json = {"data": [{"b64_json": "abc123"}]}
+        service = LLMService("http://llm/api/v1", "apikey", "model")
+        fake = FakeClient(chat_json=image_json)
+        with patch("app.services.llm.httpx.AsyncClient") as aclient_cls:
+            aclient_cls.return_value = FakeAClient(fake)
+            result = _run(
+                service.generate_image("a cat", 42, 512, 512, True, {"steps": 20})
+            )
+        assert result == "abc123"
+
+    def test_generate_image_sends_preset_and_request_params(self) -> None:
+        captured = {}
+
+        class CaptureClient(FakeClient):
+            async def post(self, url, **kwargs):
+                captured["url"] = url
+                captured["json"] = kwargs.get("json")
+                return make_response(200, json={"data": [{"b64_json": "img"}]})
+
+        service = LLMService("http://llm/api/v1", "apikey", "model")
+        fake = CaptureClient()
+        with patch("app.services.llm.httpx.AsyncClient") as aclient_cls:
+            aclient_cls.return_value = FakeAClient(fake)
+            _run(
+                service.generate_image(
+                    "a cat",
+                    7,
+                    768,
+                    1024,
+                    True,
+                    {"steps": 20, "sampler": "er_sde"},
+                )
+            )
+        assert captured["url"] == "http://llm/api/v1/images/generations"
+        body = captured["json"]
+        assert body["prompt"] == "a cat"
+        assert body["seed"] == 7
+        assert body["width"] == 768
+        assert body["height"] == 1024
+        assert body["upscale"] is True
+        assert body["steps"] == 20
+        assert body["sampler"] == "er_sde"
+
+    def test_generate_image_http_error_raises_500(self) -> None:
+        class ErrorClient(FakeClient):
+            async def post(self, url, **kwargs):
+                return make_response(500, json={"error": "boom"})
+
+        service = LLMService("http://llm", "apikey", "model")
+        fake = ErrorClient()
+        with patch("app.services.llm.httpx.AsyncClient") as aclient_cls:
+            aclient_cls.return_value = FakeAClient(fake)
+            with pytest.raises(HTTPException) as exc_info:
+                _run(service.generate_image("a cat", 1, 512, 512, False, {}))
+        assert exc_info.value.status_code == 500
+
+    def test_generate_image_no_data_raises_500(self) -> None:
+        service = LLMService("http://llm", "apikey", "model")
+        fake = FakeClient(chat_json={"data": []})
+        with patch("app.services.llm.httpx.AsyncClient") as aclient_cls:
+            aclient_cls.return_value = FakeAClient(fake)
+            with pytest.raises(HTTPException) as exc_info:
+                _run(service.generate_image("a cat", 1, 512, 512, False, {}))
+        assert exc_info.value.status_code == 500

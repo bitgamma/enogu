@@ -5,13 +5,12 @@ import time
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
-from app.config import OUTPUT_DIR, PROFILES_DIR, WORKFLOWS_DIR
+from app.config import OUTPUT_DIR, PRESETS_DIR, PROFILES_DIR
 from app.models import AnalyzeResponse, GenerateResponse
-from app.services.comfyui import create_comfyui_service
 from app.services.llm import create_llm_service
+from app.services.preset import get_preset
 from app.services.profile import get_profile
-from app.services.workflow import get_workflow_with_mappings
-from app.utils import ProfileManager, WorkflowManager, handle_api_errors
+from app.utils import PresetManager, ProfileManager, handle_api_errors
 from app.utils.image import Image
 
 router = APIRouter(prefix="/api", tags=["generation"])
@@ -25,12 +24,12 @@ async def list_profiles() -> dict:
     return {"profiles": manager.list_profiles()}
 
 
-@router.get("/workflows")
+@router.get("/presets")
 @handle_api_errors
-async def list_workflows() -> dict:
-    """List all available workflows."""
-    manager = WorkflowManager(WORKFLOWS_DIR)
-    return {"workflows": manager.list_workflows()}
+async def list_presets() -> dict:
+    """List all available presets."""
+    manager = PresetManager(PRESETS_DIR)
+    return {"presets": manager.list_presets()}
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
@@ -61,41 +60,51 @@ async def analyze_image(
 @handle_api_errors
 async def generate_image(
     prompt: str = Form(...),
-    workflow: str = Form(...),
+    preset: str = Form(...),
     width: int = Form(1024),
     height: int = Form(1024),
     seed: int = Form(-1),
-    upscale_switch: bool = Form(False),
-    upscale_resolution: int = Form(1024),
+    upscale: bool = Form(False),
     save: bool = Form(False),
 ) -> GenerateResponse:
-    """
-    Generate image from prompt using ComfyUI.
-    Uses the specified workflow for generation.
+    """Generate image from prompt using the OpenAI-compatible endpoint.
+
+    Uses the specified preset for the non-changing generation parameters;
+    prompt, seed, width, height and upscale are filled from the request.
     Optionally saves the image to the output folder.
     """
     if not prompt:
         raise HTTPException(status_code=400, detail="No prompt provided")
 
-    workflow_data = get_workflow_with_mappings(
-        workflow,
-        prompt,
-        width,
-        height,
-        seed,
-        upscale_switch,
-        upscale_resolution,
-    )
+    preset_params = get_preset(preset)
 
     # Determine save path if requested
     save_path = None
     if save:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         timestamp = int(time.time() * 1000)
-        filename = f"{workflow}-{timestamp}.png"
+        filename = f"{preset}-{timestamp}.png"
         save_path = str(OUTPUT_DIR / filename)
 
-    comfyui_service = create_comfyui_service()
-    image_base64 = await comfyui_service.execute_async(workflow_data, save_path=save_path)
+    llm_service = create_llm_service()
+    image_base64 = await llm_service.generate_image(
+        prompt=prompt,
+        seed=seed,
+        width=width,
+        height=height,
+        upscale=upscale,
+        preset_params=preset_params,
+    )
+
+    if save_path is not None:
+        import base64 as _b64
+
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            image_bytes = _b64.b64decode(image_base64)
+        except Exception:
+            image_bytes = _b64.b64decode(image_base64.split(",", 1)[-1])
+        with open(save_path, "wb") as f:
+            f.write(image_bytes)
 
     return GenerateResponse(image=f"data:image/png;base64,{image_base64}")

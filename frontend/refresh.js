@@ -1,6 +1,6 @@
 // Shared data-loading and refresh helpers used across views.
 // Lives in its own module to avoid circular imports between main.js and the editors.
-import { loadProfiles as fetchProfiles, loadWorkflows as fetchWorkflows } from './api.js';
+import { loadProfiles as fetchProfiles, loadPresets as fetchPresets } from './api.js';
 import { DOM, state } from './state.js';
 import { populateSelect, showError } from './ui.js';
 
@@ -23,20 +23,20 @@ export async function loadProfilesAndUI() {
 }
 
 /**
- * Load workflows from backend and update state.
+ * Load presets from backend and update state.
  */
-export async function loadWorkflowsAndUI() {
+export async function loadPresetsAndUI() {
     try {
-        const workflows = await fetchWorkflows();
-        if (workflows.length > 0) {
-            state.availableWorkflows = [...workflows];
-            state.workflowsLoaded = true;
+        const presets = await fetchPresets();
+        if (presets.length > 0) {
+            state.availablePresets = [...presets];
+            state.presetsLoaded = true;
         } else {
-            showError('No workflows available');
+            showError('No presets available');
         }
     } catch (err) {
-        console.error('Failed to load workflows:', err);
-        showError('Failed to load workflows. Please refresh the page.');
+        console.error('Failed to load presets:', err);
+        showError('Failed to load presets. Please refresh the page.');
     }
 }
 
@@ -51,12 +51,12 @@ export function populateProfileSelects() {
 }
 
 /**
- * Populate all workflow selects from loaded data.
+ * Populate all preset selects from loaded data.
  */
-export function populateWorkflowSelects() {
-    if (state.availableWorkflows.length > 0) {
-        populateSelect(DOM.workflowSelect, state.availableWorkflows, (name) => { state.currentWorkflow = name; });
-        populateSelect(DOM.workflowSelectResult, state.availableWorkflows);
+export function populatePresetSelects() {
+    if (state.availablePresets.length > 0) {
+        populateSelect(DOM.presetSelect, state.availablePresets, (name) => { state.currentPreset = name; });
+        populateSelect(DOM.presetSelectResult, state.availablePresets);
     }
 }
 
@@ -71,11 +71,11 @@ export async function refreshProfilesAndUI(extraCallback = null) {
 }
 
 /**
- * Refresh workflows and update all UIs.
+ * Refresh presets and update all UIs.
  * @param {Function} extraCallback - Optional repopulation of editor lists.
  */
-export async function refreshWorkflowsAndUI(extraCallback = null) {
-    await loadWorkflowsAndUI();
-    populateWorkflowSelects();
+export async function refreshPresetsAndUI(extraCallback = null) {
+    await loadPresetsAndUI();
+    populatePresetSelects();
     if (extraCallback) extraCallback();
 }

@@ -24,7 +24,7 @@ async def save_config_providers(request: dict) -> ProviderSaveResponse:
     providers = request.get("providers", {})
 
     # Validate required fields
-    required_fields = ["comfyui_endpoint", "llm_endpoint", "llm_apikey", "llm_model"]
+    required_fields = ["llm_endpoint", "llm_apikey", "llm_model"]
     for field in required_fields:
         if field not in providers:
             raise HTTPException(

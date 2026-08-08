@@ -1,4 +1,4 @@
-// Shared editor operation executor used by both profile and workflow editors.
+// Shared editor operation executor used by both profile and preset editors.
 
 import { handleApiResponse } from './api.js';
 import { showPrompt, showConfirm, showError } from './ui.js';
@@ -8,7 +8,7 @@ import { showPrompt, showConfirm, showError } from './ui.js';
  * @param {Object} operationConfig - Map of operation key -> {endpoint, method, successMsg, ...}
  * @param {string} operationKey - Key of the operation to run (save, duplicate, rename, delete)
  * @param {string} currentName - Currently selected item name
- * @param {string} label - Singular label for error messages ('profile' or 'workflow')
+ * @param {string} label - Singular label for error messages ('profile' or 'preset')
  * @param {Function} onDuplicateSelected - Called with the new name after a duplicate
  */
 export async function executeOperation(operationConfig, operationKey, currentName, label, onDuplicateSelected) {

@@ -6,8 +6,7 @@ from pydantic import BaseModel, Field
 class ProviderConfig(BaseModel):
     """Configuration for external services."""
 
-    comfyui_endpoint: str = Field(..., description="ComfyUI server endpoint")
-    llm_endpoint: str = Field(..., description="LLM API endpoint")
+    llm_endpoint: str = Field(..., description="OpenAI-compatible API endpoint")
     llm_apikey: str = Field(..., description="API key for LLM access")
     llm_model: str = Field(..., description="LLM model name")
     system_prompt: str | None = Field(None, description="Custom system prompt for tool calling")
@@ -73,79 +72,6 @@ class ProfileContent(BaseModel):
     extraction_prompt: str | None = None
 
 
-# ---- Workflow models ----
-
-
-class WorkflowSaveRequest(BaseModel):
-    """Request body for saving a workflow."""
-
-    name: str = Field(..., description="Workflow name")
-    workflow: str | None = Field(None, description="Workflow JSON content or object")
-    mappings: str | None = Field(None, description="Mappings JSON content or object")
-
-
-class WorkflowDuplicateRequest(BaseModel):
-    """Request body for duplicating a workflow."""
-
-    source_name: str = Field(..., description="Source workflow name")
-    new_name: str = Field(..., description="New workflow name")
-
-
-class WorkflowRenameRequest(BaseModel):
-    """Request body for renaming a workflow."""
-
-    old_name: str = Field(..., description="Current workflow name")
-    new_name: str = Field(..., description="New workflow name")
-
-
-class WorkflowItem(BaseModel):
-    """Single workflow item in list response."""
-
-    name: str
-
-
-class WorkflowListResponse(BaseModel):
-    """Response containing list of available workflows."""
-
-    workflows: list[WorkflowItem]
-
-
-class WorkflowContent(BaseModel):
-    """Full workflow content for editor."""
-
-    name: str
-    workflow: str | None = None
-    mappings: str | None = None
-
-
-class WorkflowSaveResponse(BaseModel):
-    """Response from workflow save operation."""
-
-    status: str = "success"
-    message: str
-
-
-class WorkflowDeleteResponse(BaseModel):
-    """Response from workflow delete operation."""
-
-    status: str = "success"
-    message: str
-
-
-class WorkflowDuplicateResponse(BaseModel):
-    """Response from workflow duplicate operation."""
-
-    status: str = "success"
-    message: str
-
-
-class WorkflowRenameResponse(BaseModel):
-    """Response from workflow rename operation."""
-
-    status: str = "success"
-    message: str
-
-
 class ProfileSaveResponse(BaseModel):
     """Response from profile save operation."""
 
@@ -169,6 +95,77 @@ class ProfileDuplicateResponse(BaseModel):
 
 class ProfileRenameResponse(BaseModel):
     """Response from profile rename operation."""
+
+    status: str = "success"
+    message: str
+
+
+# ---- Preset models ----
+
+
+class PresetSaveRequest(BaseModel):
+    """Request body for saving a preset."""
+
+    name: str = Field(..., description="Preset name")
+    settings: str | None = Field(None, description="Settings JSON content or object")
+
+
+class PresetDuplicateRequest(BaseModel):
+    """Request body for duplicating a preset."""
+
+    source_name: str = Field(..., description="Source preset name")
+    new_name: str = Field(..., description="New preset name")
+
+
+class PresetRenameRequest(BaseModel):
+    """Request body for renaming a preset."""
+
+    old_name: str = Field(..., description="Current preset name")
+    new_name: str = Field(..., description="New preset name")
+
+
+class PresetItem(BaseModel):
+    """Single preset item in list response."""
+
+    name: str
+
+
+class PresetListResponse(BaseModel):
+    """Response containing list of available presets."""
+
+    presets: list[PresetItem]
+
+
+class PresetContent(BaseModel):
+    """Full preset content for editor."""
+
+    name: str
+    settings: str | None = None
+
+
+class PresetSaveResponse(BaseModel):
+    """Response from preset save operation."""
+
+    status: str = "success"
+    message: str
+
+
+class PresetDeleteResponse(BaseModel):
+    """Response from preset delete operation."""
+
+    status: str = "success"
+    message: str
+
+
+class PresetDuplicateResponse(BaseModel):
+    """Response from preset duplicate operation."""
+
+    status: str = "success"
+    message: str
+
+
+class PresetRenameResponse(BaseModel):
+    """Response from preset rename operation."""
 
     status: str = "success"
     message: str

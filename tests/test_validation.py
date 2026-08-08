@@ -4,7 +4,6 @@ import pytest
 from fastapi import HTTPException
 
 from app.utils import (
-    apply_mappings,
     validate_name,
     validate_name_or_raise,
 )
@@ -46,45 +45,3 @@ class TestValidateNameOrRaise:
         with pytest.raises(HTTPException) as exc_info:
             validate_name_or_raise("test/profile", "test")
         assert exc_info.value.status_code == 400
-
-
-class TestApplyMappings:
-    """Tests for parameter mapping application."""
-
-    def test_apply_prompt_mapping(self) -> None:
-        workflow = {"node1": {"inputs": {"text": "original"}}}
-        mappings = {"prompt": "node1"}
-        result = apply_mappings(workflow, mappings, "new prompt", 1024, 1024, -1, False, 1024)
-        assert result["node1"]["inputs"]["text"] == "new prompt"
-
-    def test_apply_seed_mapping(self) -> None:
-        workflow = {"node1": {"inputs": {"seed": 0}}}
-        mappings = {"seed": "node1"}
-        result = apply_mappings(workflow, mappings, "prompt", 1024, 1024, 42, False, 1024)
-        assert result["node1"]["inputs"]["seed"] == 42
-
-    def test_apply_resolution_mapping(self) -> None:
-        workflow = {"node1": {"inputs": {"width": 512, "height": 512}}}
-        mappings = {"resolution": "node1"}
-        result = apply_mappings(workflow, mappings, "prompt", 768, 1024, -1, False, 1024)
-        assert result["node1"]["inputs"]["width"] == 768
-        assert result["node1"]["inputs"]["height"] == 1024
-
-    def test_apply_upscaler_switch_mapping(self) -> None:
-        workflow = {"node1": {"inputs": {"switch": 0}}}
-        mappings = {"upscaler_switch": "node1"}
-        result = apply_mappings(workflow, mappings, "prompt", 1024, 1024, -1, True, 2048)
-        assert result["node1"]["inputs"]["switch"] is True
-
-    def test_missing_node_ignored(self) -> None:
-        workflow = {"node1": {"inputs": {"text": "original"}}}
-        mappings = {"prompt": "nonexistent_node"}
-        result = apply_mappings(workflow, mappings, "new prompt", 1024, 1024, -1, False, 1024)
-        assert result["node1"]["inputs"]["text"] == "original"
-
-    def test_workflow_is_deep_copied(self) -> None:
-        workflow = {"node1": {"inputs": {"text": "original"}}}
-        mappings = {"prompt": "node1"}
-        result = apply_mappings(workflow, mappings, "new prompt", 1024, 1024, -1, False, 1024)
-        assert workflow["node1"]["inputs"]["text"] == "original"
-        assert result["node1"]["inputs"]["text"] == "new prompt"

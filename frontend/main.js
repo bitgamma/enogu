@@ -1,26 +1,26 @@
 // Main entry point - initialization and event binding
 
 import { DOM, ACTION_BUTTONS, RESOLUTIONS, state, generateRandomSeed } from './state.js';
-import { analyzeImageAPI, generateImageAPI, downloadAllProfiles, downloadAllWorkflows, loadGallery, deleteGalleryImage, deleteAllGalleryImages } from './api.js';
+import { analyzeImageAPI, generateImageAPI, downloadAllProfiles, downloadAllPresets, loadGallery, deleteGalleryImage, deleteAllGalleryImages } from './api.js';
 import { showScreen, switchView, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, setupMobileCameraButton, resetState, createAsyncHandler, showSuccess, showConfirm } from './ui.js';
-import { refreshProfilesAndUI, refreshWorkflowsAndUI, populateProfileSelects, populateWorkflowSelects, loadProfilesAndUI, loadWorkflowsAndUI } from './refresh.js';
+import { refreshProfilesAndUI, refreshPresetsAndUI, populateProfileSelects, populatePresetSelects, loadProfilesAndUI, loadPresetsAndUI } from './refresh.js';
 import { addToHistory, updateHistoryImage, renderHistory } from './history.js';
 import { populateEditorProfileList, syncEditorSidebar, loadProfileContentIntoEditor, saveCurrentProfile, duplicateCurrentProfile, renameCurrentProfile, deleteCurrentProfile } from './profile-editor.js';
-import { populateEditorWorkflowList, syncWorkflowEditorSidebar, loadWorkflowContentIntoEditor, saveCurrentWorkflow, duplicateCurrentWorkflow, renameCurrentWorkflow, deleteCurrentWorkflow, selectWorkflowForEdit } from './workflow-editor.js';
+import { populateEditorPresetList, syncPresetEditorSidebar, loadPresetContentIntoEditor, saveCurrentPreset, duplicateCurrentPreset, renameCurrentPreset, deleteCurrentPreset, selectPresetForEdit } from './preset-editor.js';
 import { saveConfigView, refreshLLMModels, loadConfigView } from './config-editor.js';
 
 /**
  * Show the generate view.
  */
 export function showGenerateView() {
-    switchView(['profiles', 'workflows', 'gallery', 'config'], 'generate');
+    switchView(['profiles', 'presets', 'gallery', 'config'], 'generate');
 }
 
 /**
  * Show the profile editor view.
  */
 export async function showProfileEditor() {
-    switchView(['generate', 'workflows', 'gallery', 'config'], 'profiles');
+    switchView(['generate', 'presets', 'gallery', 'config'], 'profiles');
     populateEditorProfileList();
     syncEditorSidebar();
     if (state.currentProfile) {
@@ -29,14 +29,14 @@ export async function showProfileEditor() {
 }
 
 /**
- * Show the workflow editor view.
+ * Show the preset editor view.
  */
-export async function showWorkflowEditor() {
-    switchView(['generate', 'profiles', 'gallery', 'config'], 'workflows');
-    populateEditorWorkflowList();
-    syncWorkflowEditorSidebar();
-    if (state.currentWorkflow) {
-        await loadWorkflowContentIntoEditor(state.currentWorkflow);
+export async function showPresetEditor() {
+    switchView(['generate', 'profiles', 'gallery', 'config'], 'presets');
+    populateEditorPresetList();
+    syncPresetEditorSidebar();
+    if (state.currentPreset) {
+        await loadPresetContentIntoEditor(state.currentPreset);
     }
 }
 
@@ -44,7 +44,7 @@ export async function showWorkflowEditor() {
  * Show the config editor view.
  */
 export function showConfigEditor() {
-    switchView(['generate', 'profiles', 'workflows', 'gallery'], 'config');
+    switchView(['generate', 'profiles', 'presets', 'gallery'], 'config');
     loadConfigView();
 }
 
@@ -52,7 +52,7 @@ export function showConfigEditor() {
  * Show the gallery view.
  */
 export async function showGalleryView() {
-    switchView(['generate', 'profiles', 'workflows', 'config'], 'gallery');
+    switchView(['generate', 'profiles', 'presets', 'config'], 'gallery');
     await loadAndRenderGallery();
 }
 
@@ -81,18 +81,18 @@ function handleProfileChange(e) {
     syncEditorSidebar();
 }
 
-// Workflow selection change handler
-function handleWorkflowChange(e) {
-    state.currentWorkflow = e.target.value;
-    syncWorkflowEditorSidebar();
+// Preset selection change handler
+function handlePresetChange(e) {
+    state.currentPreset = e.target.value;
+    syncPresetEditorSidebar();
 }
 
 // Image generation
 async function generateImage(upscale = false, save = false, resolutionMultiplier = 1) {
     DOM.progressFill.style.width = '75%';
 
-    if (!state.currentWorkflow) {
-        showError('Please select a workflow first');
+    if (!state.currentPreset) {
+        showError('Please select a preset first');
         return;
     }
 
@@ -113,34 +113,34 @@ async function generateImage(upscale = false, save = false, resolutionMultiplier
     // Store generation parameters for save-to-gallery re-execution
     state.lastGenerationParams = {
         prompt: promptSnapshot,
-        workflow: state.currentWorkflow,
+        preset: state.currentPreset,
         width: width,
         height: height,
+        baseWidth: state.currentResolution.width,
+        baseHeight: state.currentResolution.height,
         seed: seed,
         upscale: upscale,
-        upscaleResolution: state.upscaleResolution,
+        resolutionMultiplier: resolutionMultiplier,
     };
 
     // Create history placeholder immediately with all metadata
     addToHistory('', promptSnapshot, {
         seed: seed,
-        workflow: state.currentWorkflow,
+        preset: state.currentPreset,
         width: state.currentResolution.width,
         height: state.currentResolution.height,
         resolutionMultiplier: resolutionMultiplier,
     });
-    state.historyResolutionMultiplier = resolutionMultiplier;
 
     let data;
     try {
         data = await generateImageAPI(
             promptSnapshot,
-            state.currentWorkflow,
+            state.currentPreset,
             width,
             height,
             seed,
             upscale,
-            state.upscaleResolution,
             save
         );
 
@@ -172,15 +172,13 @@ async function saveToGallery() {
 
     const data = await generateImageAPI(
         params.prompt,
-        params.workflow,
+        params.preset,
         params.width,
         params.height,
         params.seed,
         params.upscale,
-        params.upscaleResolution,
         true  // save to gallery
     );
-
     const resultImage = DOM.resultImage;
     resultImage.src = data.image;
     resultImage.onload = () => {
@@ -188,10 +186,11 @@ async function saveToGallery() {
         DOM.progressFill.style.width = '100%';
         addToHistory(data.image, params.prompt, {
             seed: params.seed,
-            workflow: params.workflow,
-            width: Math.round(params.width / (state.historyResolutionMultiplier || 1)),
-            height: Math.round(params.height / (state.historyResolutionMultiplier || 1)),
-            resolutionMultiplier: state.historyResolutionMultiplier || 1,
+            preset: params.preset,
+            width: params.baseWidth ?? params.width,
+            height: params.baseHeight ?? params.height,
+            upscale: params.upscale,
+            resolutionMultiplier: params.resolutionMultiplier ?? 1,
         });
         showSuccess('Image saved to gallery');
     };
@@ -204,8 +203,8 @@ async function startProcessing() {
         return;
     }
 
-    if (!state.currentWorkflow) {
-        showError('Please select a workflow first');
+    if (!state.currentPreset) {
+        showError('Please select a preset first');
         return;
     }
 
@@ -362,31 +361,31 @@ function formatFileSize(bytes) {
 document.addEventListener('DOMContentLoaded', async () => {
     // Load initial data
     await loadProfilesAndUI();
-    await loadWorkflowsAndUI();
+    await loadPresetsAndUI();
     populateProfileSelects();
-    populateWorkflowSelects();
+    populatePresetSelects();
     populateEditorProfileList();
-    populateEditorWorkflowList();
+    populateEditorPresetList();
     setupMobileCameraButton();
 
     // Profile select handlers
     DOM.profileSelect.addEventListener('change', handleProfileChange);
     DOM.profileSelectResult.addEventListener('change', handleProfileChange);
 
-    // Workflow select handlers
-    DOM.workflowSelect.addEventListener('change', handleWorkflowChange);
-    DOM.workflowSelectResult.addEventListener('change', handleWorkflowChange);
+    // Preset select handlers
+    DOM.presetSelect.addEventListener('change', handlePresetChange);
+    DOM.presetSelectResult.addEventListener('change', handlePresetChange);
 
     // Navigation handlers
     DOM.navGenerate?.addEventListener('click', showGenerateView);
     DOM.navProfiles?.addEventListener('click', showProfileEditor);
-    DOM.navWorkflows?.addEventListener('click', showWorkflowEditor);
+    DOM.navPresets?.addEventListener('click', showPresetEditor);
     DOM.navGallery?.addEventListener('click', showGalleryView);
     DOM.navConfig?.addEventListener('click', showConfigEditor);
     DOM.refreshModelsBtn?.addEventListener('click', refreshLLMModels);
     DOM.saveConfigBtn?.addEventListener('click', saveConfigView);
     DOM.downloadAllProfilesBtn?.addEventListener('click', downloadAllProfiles);
-    DOM.downloadAllWorkflowsBtn?.addEventListener('click', downloadAllWorkflows);
+    DOM.downloadAllPresetsBtn?.addEventListener('click', downloadAllPresets);
 
     // Gallery handlers
     DOM.refreshGalleryBtn?.addEventListener('click', loadAndRenderGallery);
@@ -403,26 +402,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Profile editor tab handlers (none needed - single textarea)
-
-    // Workflow editor tab handlers
-    document.querySelectorAll('#workflowEditorTabs .tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            import('./workflow-editor.js').then(mod => mod.switchWorkflowEditorTab(btn.dataset.tab));
-        });
-    });
-
     // Profile editor handlers
     DOM.saveProfileBtn.addEventListener('click', saveCurrentProfile);
     DOM.duplicateProfileBtn.addEventListener('click', duplicateCurrentProfile);
     DOM.renameProfileBtn.addEventListener('click', renameCurrentProfile);
     DOM.deleteProfileBtn.addEventListener('click', deleteCurrentProfile);
 
-    // Workflow editor handlers
-    DOM.saveWorkflowBtn.addEventListener('click', saveCurrentWorkflow);
-    DOM.duplicateWorkflowBtn.addEventListener('click', duplicateCurrentWorkflow);
-    DOM.renameWorkflowBtn.addEventListener('click', renameCurrentWorkflow);
-    DOM.deleteWorkflowBtn.addEventListener('click', deleteCurrentWorkflow);
+    // Preset editor handlers
+    DOM.savePresetBtn.addEventListener('click', saveCurrentPreset);
+    DOM.duplicatePresetBtn.addEventListener('click', duplicateCurrentPreset);
+    DOM.renamePresetBtn.addEventListener('click', renameCurrentPreset);
+    DOM.deletePresetBtn.addEventListener('click', deleteCurrentPreset);
 
     // Upload handlers
     DOM.uploadSection.addEventListener('click', () => DOM.fileInput.click());
@@ -486,10 +476,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Control handlers
-    DOM.upscaleResolutionSelect.addEventListener('change', (e) => {
-        state.upscaleResolution = parseInt(e.target.value, 10);
-    });
-
     DOM.newBtn.addEventListener('click', () => {
         resetState();
         state.historyResolutionMultiplier = null;

@@ -2,25 +2,25 @@
 
 import { DOM, state } from './state.js';
 
-// View switching (main navigation between Generate, Profiles, Workflows, Gallery, Settings)
+// View switching (main navigation between Generate, Profiles, Presets, Gallery, Settings)
 export function switchView(hideViews, showView) {
     const hideList = Array.isArray(hideViews) ? hideViews : [hideViews];
 
     const isActiveGenerate = !hideList.includes('generate');
     const isActiveProfiles = !hideList.includes('profiles');
-    const isActiveWorkflows = !hideList.includes('workflows');
+    const isActivePresets = !hideList.includes('presets');
     const isActiveGallery = !hideList.includes('gallery');
     const isActiveConfig = !hideList.includes('config');
 
     DOM.navGenerate?.classList.toggle('active', isActiveGenerate);
     DOM.navProfiles?.classList.toggle('active', isActiveProfiles);
-    DOM.navWorkflows?.classList.toggle('active', isActiveWorkflows);
+    DOM.navPresets?.classList.toggle('active', isActivePresets);
     DOM.navGallery?.classList.toggle('active', isActiveGallery);
     DOM.navConfig?.classList.toggle('active', isActiveConfig);
 
     DOM.screen1.parentElement.style.display = isActiveGenerate ? 'block' : 'none';
     DOM.profileEditorContainer.style.display = isActiveProfiles ? 'flex' : 'none';
-    DOM.workflowEditorContainer.style.display = isActiveWorkflows ? 'flex' : 'none';
+    DOM.presetEditorContainer.style.display = isActivePresets ? 'flex' : 'none';
     DOM.galleryContainer.style.display = isActiveGallery ? 'block' : 'none';
     DOM.configEditorContainer.style.display = isActiveConfig ? 'block' : 'none';
 }
@@ -32,7 +32,7 @@ export function showScreen(screenNumber) {
     });
     if (screenNumber === 3) {
         DOM.profileSelectResult.value = state.currentProfile || '';
-        DOM.workflowSelectResult.value = state.currentWorkflow || '';
+        DOM.presetSelectResult.value = state.currentPreset || '';
     }
 }
 
@@ -245,8 +245,8 @@ export function resetState() {
     DOM.cameraInput.value = '';
     DOM.profileSelect.value = state.currentProfile || '';
     DOM.profileSelectResult.value = state.currentProfile || '';
-    DOM.workflowSelect.value = state.currentWorkflow || '';
-    DOM.workflowSelectResult.value = state.currentWorkflow || '';
+    DOM.presetSelect.value = state.currentPreset || '';
+    DOM.presetSelectResult.value = state.currentPreset || '';
 }
 
 /**

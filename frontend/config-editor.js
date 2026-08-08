@@ -12,7 +12,6 @@ export async function loadConfigView() {
         const providers = await loadConfig();
 
         state.currentConfig = providers;
-        DOM.comfyuiEndpoint.value = providers.comfyui_endpoint || '';
         DOM.llmEndpoint.value = providers.llm_endpoint || '';
         DOM.llmApiKey.value = providers.llm_apikey || '';
         DOM.llmSystemPrompt.value = providers.system_prompt || '';
@@ -30,20 +29,18 @@ export async function loadConfigView() {
  * Save configuration from the config editor.
  */
 export async function saveConfigView() {
-    const comfyuiEndpoint = DOM.comfyuiEndpoint.value.trim();
     const llmEndpoint = DOM.llmEndpoint.value.trim();
     const llmApiKey = DOM.llmApiKey.value.trim();
     const llmModel = DOM.llmModel.value;
     const llmSystemPrompt = DOM.llmSystemPrompt.value.trim();
     
-    if (!comfyuiEndpoint || !llmEndpoint || !llmApiKey || !llmModel) {
+    if (!llmEndpoint || !llmApiKey || !llmModel) {
         showError('All fields are required');
         return;
     }
     
     const newConfig = {
         providers: {
-            comfyui_endpoint: comfyuiEndpoint,
             llm_endpoint: llmEndpoint,
             llm_apikey: llmApiKey,
             llm_model: llmModel,

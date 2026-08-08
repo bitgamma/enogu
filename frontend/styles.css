@@ -786,7 +786,7 @@ label {
     white-space: nowrap;
 }
 
-.workflow-name {
+.preset-name {
     font-size: 14px;
     font-weight: 500;
     overflow: hidden;
@@ -794,7 +794,7 @@ label {
     white-space: nowrap;
 }
 
-.workflow-item {
+.preset-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -805,22 +805,22 @@ label {
     transition: all 0.2s;
 }
 
-.workflow-item:hover {
+.preset-item:hover {
     background: #e5e7eb;
 }
 
-.workflow-item.selected {
+.preset-item.selected {
     background: #1a1a1a;
     color: white;
 }
 
-.workflow-item.selected .workflow-item-btn:hover {
+.preset-item.selected .preset-item-btn:hover {
     background: #d1d5db;
     color: black;
     border-color: #d1d5db;
 }
 
-.workflow-item-btn {
+.preset-item-btn {
     width: 28px;
     height: 28px;
     border: 1px solid #d1d5db;
@@ -834,7 +834,7 @@ label {
     transition: all 0.2s;
 }
 
-.workflow-item-btn:hover {
+.preset-item-btn:hover {
     background: #1a1a1a;
     color: white;
     border-color: #1a1a1a;

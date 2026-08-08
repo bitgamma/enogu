@@ -1,6 +1,6 @@
 """
 Image Generation Webapp Backend
-Processes uploaded images through an LLM and generates new images via ComfyUI.
+Processes uploaded images through an LLM and generates new images via the same OpenAI-compatible endpoint.
 Supports multiple profiles for different generation configurations.
 
 This module re-exports the FastAPI app from the new modular structure.
