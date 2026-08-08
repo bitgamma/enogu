@@ -155,7 +155,7 @@ export const state = {
  * @returns {number} Random seed
  */
 export function generateRandomSeed() {
-    return Math.floor(Math.random() * 4294967295);
+    return Math.floor(Math.random() * 2147483647);
 }
 
 // Action button configurations (keyed by name; operations are wired in main.js)
