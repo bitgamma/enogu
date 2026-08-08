@@ -5,8 +5,8 @@ export const DOM = {
     // Generate view
     profileSelect: document.getElementById('profileSelect'),
     profileSelectResult: document.getElementById('profileSelectResult'),
-    workflowSelect: document.getElementById('workflowSelect'),
-    workflowSelectResult: document.getElementById('workflowSelectResult'),
+    presetSelect: document.getElementById('presetSelect'),
+    presetSelectResult: document.getElementById('presetSelectResult'),
     uploadSection: document.getElementById('uploadSection'),
     fileInput: document.getElementById('fileInput'),
     cameraInput: document.getElementById('cameraInput'),
@@ -20,7 +20,6 @@ export const DOM = {
     upscaleBtn: document.getElementById('upscaleBtn'),
     promptText: document.getElementById('promptText'),
     resolutionSelect: document.getElementById('resolutionSelect'),
-    upscaleResolutionSelect: document.getElementById('upscaleResolutionSelect'),
     errorContainer: document.getElementById('errorContainer'),
     errorMessage: document.getElementById('errorMessage'),
     errorClose: document.getElementById('errorClose'),
@@ -54,24 +53,21 @@ export const DOM = {
     deleteProfileBtn: document.getElementById('deleteProfileBtn'),
     downloadAllProfilesBtn: document.getElementById('downloadAllProfilesBtn'),
 
-    // Workflow editor
-    workflowEditorContainer: document.getElementById('workflowEditorContainer'),
-    workflowList: document.getElementById('workflowList'),
-    editorWorkflowName: document.getElementById('editorWorkflowName'),
-    workflowEditorTabs: document.getElementById('workflowEditorTabs'),
-    workflowEditorContent: document.getElementById('workflowEditorContent'),
-    workflowEditorPlaceholder: document.getElementById('workflowEditorPlaceholder'),
-    workflowJsonEditor: document.getElementById('workflowJsonEditor'),
-    mappingsJsonEditor: document.getElementById('mappingsJsonEditor'),
-    saveWorkflowBtn: document.getElementById('saveWorkflowBtn'),
-    duplicateWorkflowBtn: document.getElementById('duplicateWorkflowBtn'),
-    renameWorkflowBtn: document.getElementById('renameWorkflowBtn'),
-    deleteWorkflowBtn: document.getElementById('deleteWorkflowBtn'),
-    downloadAllWorkflowsBtn: document.getElementById('downloadAllWorkflowsBtn'),
+    // Preset editor
+    presetEditorContainer: document.getElementById('presetEditorContainer'),
+    presetList: document.getElementById('presetList'),
+    editorPresetName: document.getElementById('editorPresetName'),
+    presetEditorContent: document.getElementById('presetEditorContent'),
+    presetEditorPlaceholder: document.getElementById('presetEditorPlaceholder'),
+    settingsJsonEditor: document.getElementById('settingsJsonEditor'),
+    savePresetBtn: document.getElementById('savePresetBtn'),
+    duplicatePresetBtn: document.getElementById('duplicatePresetBtn'),
+    renamePresetBtn: document.getElementById('renamePresetBtn'),
+    deletePresetBtn: document.getElementById('deletePresetBtn'),
+    downloadAllPresetsBtn: document.getElementById('downloadAllPresetsBtn'),
 
     // Config editor
     configEditorContainer: document.getElementById('configEditorContainer'),
-    comfyuiEndpoint: document.getElementById('comfyuiEndpoint'),
     llmEndpoint: document.getElementById('llmEndpoint'),
     llmApiKey: document.getElementById('llmApiKey'),
     llmModel: document.getElementById('llmModel'),
@@ -82,7 +78,7 @@ export const DOM = {
     // Navigation
     navGenerate: document.getElementById('navGenerate'),
     navProfiles: document.getElementById('navProfiles'),
-    navWorkflows: document.getElementById('navWorkflows'),
+    navPresets: document.getElementById('navPresets'),
     navGallery: document.getElementById('navGallery'),
     navConfig: document.getElementById('navConfig'),
 
@@ -115,10 +111,10 @@ export const state = {
     availableProfiles: [],
     profilesLoaded: false,
 
-    // Workflow selection
-    currentWorkflow: null,
-    availableWorkflows: [],
-    workflowsLoaded: false,
+    // Preset selection
+    currentPreset: null,
+    availablePresets: [],
+    presetsLoaded: false,
 
     // Image handling
     selectedFile: null,
@@ -130,15 +126,13 @@ export const state = {
 
     // Image history
     imageHistory: [],
-    upscaleResolution: 2048,
-
     // Profile editor state
     editorProfileData: { extraction_prompt: '' },
     editorOriginalNames: new Set(),
 
-    // Workflow editor state
-    editorWorkflowData: { workflow: '', mappings: '' },
-    editorOriginalWorkflowNames: new Set(),
+    // Preset editor state
+    editorPresetData: { settings: '' },
+    editorOriginalPresetNames: new Set(),
 
     // Configuration
     currentConfig: null,

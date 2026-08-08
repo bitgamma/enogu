@@ -51,19 +51,18 @@ export async function analyzeImageAPI(file, profile) {
 /**
  * Generate an image via the /api/generate endpoint.
  * @param {string} prompt - The generation prompt
- * @param {string} workflow - The workflow name
+ * @param {string} preset - The preset name
  * @param {number} width - Image width
  * @param {number} height - Image height
  * @param {number|null} seed - Seed value (null for random)
  * @param {boolean} upscale - Whether to upscale
- * @param {number} upscaleResolution - Upscale resolution
  * @param {boolean} save - Whether to save to gallery
  * @returns {Promise<{image: string}>}
  */
-export async function generateImageAPI(prompt, workflow, width, height, seed, upscale, upscaleResolution, save = false) {
+export async function generateImageAPI(prompt, preset, width, height, seed, upscale, save = false) {
     const formData = new FormData();
     formData.append('prompt', prompt);
-    formData.append('workflow', workflow);
+    formData.append('preset', preset);
     formData.append('width', width);
     formData.append('height', height);
 
@@ -74,8 +73,7 @@ export async function generateImageAPI(prompt, workflow, width, height, seed, up
     }
 
     if (upscale) {
-        formData.append('upscale_switch', true);
-        formData.append('upscale_resolution', upscaleResolution);
+        formData.append('upscale', true);
     }
 
     formData.append('save', save);
@@ -93,12 +91,12 @@ export async function loadProfiles() {
 }
 
 /**
- * Load available workflows from backend.
- * @returns {Promise<Array>} List of workflows
+ * Load available presets from backend.
+ * @returns {Promise<Array>} List of presets
  */
-export async function loadWorkflows() {
-    const data = await fetchJson('/api/workflows');
-    return data?.workflows || [];
+export async function loadPresets() {
+    const data = await fetchJson('/api/presets');
+    return data?.presets || [];
 }
 
 /**
@@ -208,24 +206,24 @@ export function downloadAllProfiles() {
     window.location.href = '/api/profile-editor/download-all';
 }
 
-// ============== Workflow API ==============
+// ============== Preset API ==============
 
 /**
- * Load workflow content for editing.
- * @param {string} workflowName - Workflow name
- * @returns {Promise<Object>} Workflow content
+ * Load preset content for editing.
+ * @param {string} presetName - Preset name
+ * @returns {Promise<Object>} Preset content
  */
-export async function loadWorkflowContent(workflowName) {
-    return fetchJson(`/api/workflow-editor/workflow/${encodeURIComponent(workflowName)}`);
+export async function loadPresetContent(presetName) {
+    return fetchJson(`/api/preset-editor/preset/${encodeURIComponent(presetName)}`);
 }
 
 /**
- * Save a workflow.
- * @param {Object} payload - Workflow data
+ * Save a preset.
+ * @param {Object} payload - Preset data
  * @returns {Promise<Response>} Fetch response
  */
-export async function saveWorkflow(payload) {
-    return fetch('/api/workflow-editor/workflow', {
+export async function savePreset(payload) {
+    return fetch('/api/preset-editor/preset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -233,13 +231,13 @@ export async function saveWorkflow(payload) {
 }
 
 /**
- * Duplicate a workflow.
- * @param {string} sourceName - Source workflow name
- * @param {string} newName - New workflow name
+ * Duplicate a preset.
+ * @param {string} sourceName - Source preset name
+ * @param {string} newName - New preset name
  * @returns {Promise<Response>} Fetch response
  */
-export async function duplicateWorkflow(sourceName, newName) {
-    return fetch('/api/workflow-editor/workflow/duplicate', {
+export async function duplicatePreset(sourceName, newName) {
+    return fetch('/api/preset-editor/preset/duplicate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source_name: sourceName, new_name: newName })
@@ -247,13 +245,13 @@ export async function duplicateWorkflow(sourceName, newName) {
 }
 
 /**
- * Rename a workflow.
- * @param {string} oldName - Old workflow name
- * @param {string} newName - New workflow name
+ * Rename a preset.
+ * @param {string} oldName - Old preset name
+ * @param {string} newName - New preset name
  * @returns {Promise<Response>} Fetch response
  */
-export async function renameWorkflow(oldName, newName) {
-    return fetch('/api/workflow-editor/workflow/rename', {
+export async function renamePreset(oldName, newName) {
+    return fetch('/api/preset-editor/preset/rename', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ old_name: oldName, new_name: newName })
@@ -261,27 +259,27 @@ export async function renameWorkflow(oldName, newName) {
 }
 
 /**
- * Delete a workflow.
- * @param {string} name - Workflow name
+ * Delete a preset.
+ * @param {string} name - Preset name
  * @returns {Promise<Response>} Fetch response
  */
-export async function deleteWorkflow(name) {
-    return fetch(`/api/workflow-editor/workflow/${encodeURIComponent(name)}`, { method: 'DELETE' });
+export async function deletePreset(name) {
+    return fetch(`/api/preset-editor/preset/${encodeURIComponent(name)}`, { method: 'DELETE' });
 }
 
 /**
- * Download a specific workflow.
- * @param {string} workflowName - Workflow name
+ * Download a specific preset.
+ * @param {string} presetName - Preset name
  */
-export function downloadWorkflow(workflowName) {
-    window.location.href = `/api/workflow-editor/download/${encodeURIComponent(workflowName)}`;
+export function downloadPreset(presetName) {
+    window.location.href = `/api/preset-editor/download/${encodeURIComponent(presetName)}`;
 }
 
 /**
- * Download all workflows.
+ * Download all presets.
  */
-export function downloadAllWorkflows() {
-    window.location.href = '/api/workflow-editor/download-all';
+export function downloadAllPresets() {
+    window.location.href = '/api/preset-editor/download-all';
 }
 
 /**

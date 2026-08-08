@@ -10,14 +10,13 @@ from typing import Any
 BASE_DIR = Path(__file__).parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 PROFILES_DIR = BASE_DIR / "profiles"
-WORKFLOWS_DIR = BASE_DIR / "workflows"
+PRESETS_DIR = BASE_DIR / "presets"
 OUTPUT_DIR = BASE_DIR / "output"
 CONFIG_FILE = BASE_DIR / "config.json"
 
 _DEFAULT_CONFIG: dict[str, Any] = {
     "server": {"host": "0.0.0.0", "port": 8380},
     "providers": {
-        "comfyui_endpoint": "http://localhost:8188",
         "llm_endpoint": "http://localhost:8000/api/v1",
         "llm_apikey": "",
         "llm_model": "",
@@ -86,8 +85,7 @@ DEFAULT_SYSTEM_PROMPT = (
 # Constants
 MAX_LLM_IMAGE_PIXELS = 1_500_000
 LLM_TIMEOUT_SECONDS = 60
-COMFYUI_POLL_TIMEOUT_SECONDS = 300
-COMFYUI_POLL_INTERVAL_SECONDS = 0.5
+IMAGE_GEN_TIMEOUT_SECONDS = 300
 MAX_SEED_VALUE = (1 << 32) - 1
 
 

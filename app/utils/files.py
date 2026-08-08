@@ -135,14 +135,14 @@ class ProfileManager(FileSetManager):
         return self.list_items()
 
 
-class WorkflowManager(FileSetManager):
-    """Manages workflow directories (workflow.json + mappings.json)."""
+class PresetManager(FileSetManager):
+    """Manages preset directories (settings.json)."""
 
-    def __init__(self, workflows_dir: Path) -> None:
-        super().__init__(workflows_dir, ["workflow.json", "mappings.json"], label="Workflow")
-        self.workflows_dir = workflows_dir
-        self.workflows_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, presets_dir: Path) -> None:
+        super().__init__(presets_dir, ["settings.json"], label="Preset")
+        self.presets_dir = presets_dir
+        self.presets_dir.mkdir(parents=True, exist_ok=True)
 
-    def list_workflows(self) -> list[dict]:
-        """List all workflows."""
+    def list_presets(self) -> list[dict]:
+        """List all presets."""
         return self.list_items()

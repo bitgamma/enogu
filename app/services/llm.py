@@ -9,6 +9,7 @@ from PIL import Image
 from app.config import (
     DEFAULT_SYSTEM_PROMPT,
     GENERATE_IMAGE_TOOL,
+    IMAGE_GEN_TIMEOUT_SECONDS,
     LLM_TIMEOUT_SECONDS,
     get_providers,
 )
@@ -89,6 +90,49 @@ class LLMService:
 
         raise HTTPException(status_code=500, detail="LLM did not return a valid tool call")
 
+    async def generate_image(
+        self,
+        prompt: str,
+        seed: int,
+        width: int,
+        height: int,
+        upscale: bool,
+        preset_params: dict,
+    ) -> str:
+        """Generate an image via the OpenAI-compatible endpoint.
+
+        The endpoint accepts standard "prompt" and "seed" fields plus the
+        non-standard generation parameters. Parameters that do not change
+        per-request are provided by the preset (preset_params); prompt, seed,
+        width, height and upscale are filled from the request.
+
+        Returns the base64-encoded PNG image.
+        """
+        payload = {
+            "prompt": prompt,
+            "seed": seed,
+            "width": width,
+            "height": height,
+            "upscale": upscale,
+            **preset_params,
+        }
+
+        headers = build_llm_headers(self.apikey)
+
+        async with httpx.AsyncClient(timeout=IMAGE_GEN_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                f"{self.endpoint}/images/generations",
+                headers=headers,
+                json=payload,
+            )
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=500, detail=f"Image generation API error: {response.text}"
+            )
+
+        return _extract_image_base64(response.json(), response.content)
+
     async def list_models(self) -> list[str]:
         """
         Fetch available models from the LLM endpoint.
@@ -132,6 +176,30 @@ class LLMService:
                             f"{alt_response.status_code} {alt_response.text}"
                         ),
                     )
+
+
+def _extract_image_base64(result: dict, raw_content: bytes) -> str:
+    """Extract a base64 image from various OpenAI-compatible response formats."""
+    if isinstance(result, dict):
+        # Standard OpenAI-style response: data[0].b64_json
+        data = result.get("data")
+        if isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict) and item.get("b64_json"):
+                    return item["b64_json"]
+        # Some custom endpoints return the image directly under a key
+        for key in ("image", "b64_json", "base64", "images"):
+            value = result.get(key)
+            if isinstance(value, str) and value:
+                return value
+            if isinstance(value, list) and value and isinstance(value[0], str):
+                return value[0]
+        raise HTTPException(status_code=500, detail="No image returned from generation endpoint")
+    # Fall back to a raw base64 body for non-JSON responses
+    text = raw_content.decode("utf-8", errors="ignore").strip() if raw_content else ""
+    if text and not text.startswith("{"):
+        return text
+    raise HTTPException(status_code=500, detail="No image returned from generation endpoint")
 
 
 def _extract_model_names(models: list) -> list[str]:

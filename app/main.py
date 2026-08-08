@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import FRONTEND_DIR, get_server_config
-from app.routes import config_router, gallery_router, generation_router, profiles_router, workflows_router
+from app.routes import config_router, gallery_router, generation_router, presets_router, profiles_router
 
 app = FastAPI(title="Image Generation Webapp")
 
@@ -56,7 +56,7 @@ async def index() -> HTMLResponse:
 app.include_router(generation_router)
 app.include_router(gallery_router)
 app.include_router(profiles_router)
-app.include_router(workflows_router)
+app.include_router(presets_router)
 app.include_router(config_router)
 
 

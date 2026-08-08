@@ -1,6 +1,5 @@
-"""Validation utilities and parameter mapping handlers."""
+"""Validation utilities."""
 
-import copy
 import json
 import logging
 import re
@@ -16,15 +15,6 @@ logger = logging.getLogger(__name__)
 NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 # Filenames additionally allow a dot (extension).
 FILENAME_RE = re.compile(r"^[a-zA-Z0-9._-]+$")
-
-# Parameter mapping handlers - maps param names to their input keys and values
-PARAM_HANDLERS = {
-    "prompt": ("text", lambda **kw: kw["prompt"]),
-    "seed": ("seed", lambda **kw: kw["seed"]),
-    "resolution": None,  # Special case: sets both width and height
-    "upscaler_switch": ("switch", lambda **kw: kw["upscale_switch"]),
-    "upscale_resolution": ("value", lambda **kw: kw["upscale_resolution"]),
-}
 
 
 def validate_name(name: str) -> bool:
@@ -42,52 +32,6 @@ def validate_filename_or_raise(filename: str | None, field: str = "filename") ->
     """Validate a filename and raise HTTPException if invalid."""
     if not filename or not FILENAME_RE.match(filename):
         raise HTTPException(status_code=400, detail=f"Invalid {field}")
-
-
-def apply_mappings(
-    workflow: dict,
-    mappings: dict,
-    prompt: str,
-    width: int,
-    height: int,
-    seed: int,
-    upscale_switch: bool,
-    upscale_resolution: int,
-) -> dict:
-    """
-    Apply parameter mappings to the workflow.
-
-    Mappings format: {"param_name": "node_id"}
-    The node_id is used directly as a key in the workflow to find the node to replace.
-    """
-    workflow = copy.deepcopy(workflow)
-    kwargs = {
-        "prompt": prompt,
-        "seed": seed,
-        "width": width,
-        "height": height,
-        "upscale_switch": upscale_switch,
-        "upscale_resolution": upscale_resolution,
-    }
-
-    for param_name, node_id in mappings.items():
-        if node_id not in workflow or param_name not in PARAM_HANDLERS:
-            continue
-
-        node = workflow[node_id]
-        node_inputs = node.get("inputs", {})
-
-        if param_name == "resolution":
-            if "width" in node_inputs:
-                node_inputs["width"] = width
-            if "height" in node_inputs:
-                node_inputs["height"] = height
-        else:
-            input_key, value_fn = PARAM_HANDLERS[param_name]
-            if input_key in node_inputs:
-                node_inputs[input_key] = value_fn(**kwargs)
-
-    return workflow
 
 
 def handle_api_errors(func: Callable) -> Callable:

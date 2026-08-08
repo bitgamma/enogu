@@ -8,16 +8,15 @@ import { DOM, state, RESOLUTIONS, MAX_HISTORY } from './state.js';
  * @param {string} promptUsed - The prompt used for generation
  * @param {Object} options - Additional generation metadata
  * @param {number|null} [options.seed] - The seed used (defaults to state.currentSeed)
- * @param {string} [options.workflow] - The workflow name used
- * @param {number} [options.width] - Base resolution width
- * @param {number} [options.height] - Base resolution height
- * @param {number} [options.resolutionMultiplier] - Resolution multiplier (1, 1.5, or 2)
+ * @param {string} [options.preset] - The preset name used
+ * @param {number} [options.width] - Resolution width
+ * @param {number} [options.height] - Resolution height
  * @returns {number} Index of the created/updated history item
  */
 export function addToHistory(imageSrc, promptUsed, options = {}) {
     const {
         seed = state.currentSeed,
-        workflow,
+        preset,
         width,
         height,
         resolutionMultiplier = 1,
@@ -27,7 +26,7 @@ export function addToHistory(imageSrc, promptUsed, options = {}) {
         src: imageSrc || null,
         prompt: promptUsed,
         seed: seed,
-        workflow: workflow || null,
+        preset: preset || null,
         width: width || null,
         height: height || null,
         resolutionMultiplier: resolutionMultiplier,
@@ -130,10 +129,10 @@ export function renderHistory() {
             if (item.seed !== undefined) {
                 state.currentSeed = item.seed;
             }
-            if (item.workflow) {
-                state.currentWorkflow = item.workflow;
-                DOM.workflowSelect.value = item.workflow;
-                DOM.workflowSelectResult.value = item.workflow;
+            if (item.preset) {
+                state.currentPreset = item.preset;
+                DOM.presetSelect.value = item.preset;
+                DOM.presetSelectResult.value = item.preset;
             }
             if (item.width !== null && item.height !== null) {
                 state.currentResolution = { width: item.width, height: item.height };
