@@ -30,7 +30,7 @@ export function addToHistory(imageSrc, promptUsed, options = {}) {
         width: width || null,
         height: height || null,
         resolutionMultiplier: resolutionMultiplier,
-    }) - 1;
+    });
 
     if (state.imageHistory.length > MAX_HISTORY) {
         state.imageHistory.pop();
