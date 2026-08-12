@@ -463,9 +463,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         regenerate: () => generateImage(false, false, 1),
         regenerate15: () => generateImage(false, false, 1.5),
         regenerate2: () => generateImage(false, false, 2),
-        upscale: () => {
+        upscale: async () => {
             const multiplier = state.historyResolutionMultiplier || 1;
-            generateImage(true, true, multiplier);
+            await generateImage(true, true, multiplier);
         },
         saveToGallery,
     };
