@@ -31,6 +31,7 @@ export const DOM = {
     stepIndicator1: document.getElementById('stepIndicator1'),
     stepIndicator2: document.getElementById('stepIndicator2'),
     stepIndicator3: document.getElementById('stepIndicator3'),
+    requestTimer: document.getElementById('requestTimer'),
     processingText: document.getElementById('processingText'),
     screen1: document.getElementById('screen1'),
     screen2: document.getElementById('screen2'),
@@ -123,6 +124,8 @@ export const state = {
 
     // Processing state
     isProcessing: false,
+    requestTimerStart: null,
+    requestTimerInterval: null,
 
     // Image history
     imageHistory: [],

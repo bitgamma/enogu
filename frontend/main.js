@@ -2,7 +2,7 @@
 
 import { DOM, ACTION_BUTTONS, RESOLUTIONS, state, generateRandomSeed } from './state.js';
 import { analyzeImageAPI, generateImageAPI, downloadAllProfiles, downloadAllPresets, loadGallery, deleteGalleryImage, deleteAllGalleryImages } from './api.js';
-import { showScreen, switchView, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, setupMobileCameraButton, resetState, createAsyncHandler, showSuccess, showConfirm } from './ui.js';
+import { showScreen, switchView, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, setupMobileCameraButton, resetState, createAsyncHandler, showSuccess, showConfirm, startRequestTimer, stopRequestTimer } from './ui.js';
 import { refreshProfilesAndUI, refreshPresetsAndUI, populateProfileSelects, populatePresetSelects, loadProfilesAndUI, loadPresetsAndUI } from './refresh.js';
 import { addToHistory, updateHistoryImage, renderHistory } from './history.js';
 import { populateEditorProfileList, syncEditorSidebar, loadProfileContentIntoEditor, saveCurrentProfile, duplicateCurrentProfile, renameCurrentProfile, deleteCurrentProfile } from './profile-editor.js';
@@ -217,6 +217,7 @@ async function startProcessing() {
     showScreen(2);
     resetProgress();
     hideErrorActions();
+    startRequestTimer();
 
     try {
         await analyzeImage();
@@ -224,12 +225,13 @@ async function startProcessing() {
         showScreen(3);
         DOM.progressFill.style.width = '100%';
         DOM.stepIndicator3.classList.add('active', 'completed');
-        state.isProcessing = false;
     } catch (err) {
         console.error('Processing failed:', err);
         showError(err.message || 'Processing failed. Please try again.');
-        state.isProcessing = false;
         showErrorActions();
+    } finally {
+        state.isProcessing = false;
+        stopRequestTimer();
     }
 }
 

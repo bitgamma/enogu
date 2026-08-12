@@ -60,6 +60,23 @@ h1 {
 /* Progress Bar */
 .progress-bar-container {
     margin-bottom: 40px;
+    position: relative;
+}
+
+.request-timer {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    left: auto;
+    transform: none;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+    background: var(--color-background);
+    padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
 .progress-bar {

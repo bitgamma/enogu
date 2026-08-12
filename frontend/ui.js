@@ -228,6 +228,30 @@ export function setupMobileCameraButton() {
 }
 
 /**
+ * Start the request elapsed timer.
+ */
+export function startRequestTimer() {
+    state.requestTimerStart = performance.now();
+    if (DOM.requestTimer) DOM.requestTimer.textContent = '0.0s';
+    if (state.requestTimerInterval) clearInterval(state.requestTimerInterval);
+    state.requestTimerInterval = setInterval(() => {
+        const elapsed = (performance.now() - state.requestTimerStart) / 1000;
+        if (DOM.requestTimer) DOM.requestTimer.textContent = `${elapsed.toFixed(1)}s`;
+    }, 100);
+}
+
+/**
+ * Stop the request elapsed timer.
+ */
+export function stopRequestTimer() {
+    if (state.requestTimerInterval) {
+        clearInterval(state.requestTimerInterval);
+        state.requestTimerInterval = null;
+    }
+    state.requestTimerStart = null;
+}
+
+/**
  * Reset application state.
  */
 export function resetState() {
@@ -241,6 +265,7 @@ export function resetState() {
     DOM.regenerateBtn.disabled = true;
     hideNotification();
     resetProgress();
+    stopRequestTimer();
     DOM.fileInput.value = '';
     DOM.cameraInput.value = '';
     DOM.profileSelect.value = state.currentProfile || '';
@@ -266,6 +291,7 @@ export function createAsyncHandler(btn, loadingText, completeText, progressWidth
         try {
             DOM.processingText.textContent = loadingText;
             DOM.progressFill.style.width = progressWidth;
+            startRequestTimer();
             await operation();
             DOM.processingText.textContent = completeText;
         } catch (err) {
@@ -274,6 +300,7 @@ export function createAsyncHandler(btn, loadingText, completeText, progressWidth
         } finally {
             state.isProcessing = false;
             btn.disabled = false;
+            stopRequestTimer();
         }
     };
 }
