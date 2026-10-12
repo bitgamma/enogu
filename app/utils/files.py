@@ -8,6 +8,8 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+from app.utils.validation import coerce_preset_resolution_fields
+
 
 def read_file_content(path: Path, strip: bool = False, as_json: bool = False) -> str | dict | None:
     """Read file content with optional processing. Returns None if file doesn't exist."""
@@ -144,5 +146,23 @@ class PresetManager(FileSetManager):
         self.presets_dir.mkdir(parents=True, exist_ok=True)
 
     def list_presets(self) -> list[dict]:
-        """List all presets."""
-        return self.list_items()
+        """List all presets, exposing the resolution fields the UI needs.
+
+        `target_megapixels` (1 MP = 1024x1024) and `resolution_divisor` are read
+        from each preset's settings.json so the frontend can compute the actual
+        width/height for the chosen aspect ratio. Unset/invalid values are
+        reported as null and fall back to the client defaults.
+        """
+        items = []
+        for item in self.list_items():
+            target, divisor = coerce_preset_resolution_fields(self._read_settings(item["name"]))
+            items.append({"name": item["name"], "target_megapixels": target, "resolution_divisor": divisor})
+        return items
+
+    def _read_settings(self, name: str) -> dict | None:
+        """Read a preset's settings.json, returning None when unreadable/invalid."""
+        try:
+            settings = read_file_content(self._dir(name) / self.filenames[0], as_json=True)
+        except (OSError, ValueError):
+            return None
+        return settings if isinstance(settings, dict) else None

@@ -1,9 +1,10 @@
 // Main entry point - initialization and event binding
 
-import { DOM, ACTION_BUTTONS, RESOLUTIONS, state, generateRandomSeed } from './state.js';
+import { DOM, ACTION_BUTTONS, state, generateRandomSeed } from './state.js';
 import { analyzeImageAPI, generateImageAPI, downloadAllProfiles, downloadAllPresets, loadGallery, deleteGalleryImage, deleteAllGalleryImages } from './api.js';
 import { showScreen, switchView, resetProgress, hideNotification, showError, showErrorActions, hideErrorActions, setupMobileCameraButton, resetState, createAsyncHandler, showSuccess, showConfirm, startRequestTimer, stopRequestTimer } from './ui.js';
-import { refreshProfilesAndUI, refreshPresetsAndUI, populateProfileSelects, populatePresetSelects, loadProfilesAndUI, loadPresetsAndUI } from './refresh.js';
+import { refreshProfilesAndUI, refreshPresetsAndUI, populateProfileSelects, populatePresetSelects, loadProfilesAndUI, loadPresetsAndUI, setCurrentPreset, setRatioKey, setScale, syncRatioSelect } from './refresh.js';
+import { computeSize, presetResolution } from './resolution.js';
 import { addToHistory, updateHistoryImage, renderHistory } from './history.js';
 import { populateEditorProfileList, syncEditorSidebar, loadProfileContentIntoEditor, saveCurrentProfile, duplicateCurrentProfile, renameCurrentProfile, deleteCurrentProfile } from './profile-editor.js';
 import { populateEditorPresetList, syncPresetEditorSidebar, loadPresetContentIntoEditor, saveCurrentPreset, duplicateCurrentPreset, renameCurrentPreset, deleteCurrentPreset, selectPresetForEdit } from './preset-editor.js';
@@ -83,12 +84,23 @@ function handleProfileChange(e) {
 
 // Preset selection change handler
 function handlePresetChange(e) {
-    state.currentPreset = e.target.value;
+    // The preset owns the target resolution, so switching presets changes the size.
+    setCurrentPreset(e.target.value);
     syncPresetEditorSidebar();
 }
 
+/**
+ * Compute the size for the current ratio/preset/scale combination.
+ * @param {number} scale - Per-side scale factor
+ * @returns {{width: number, height: number, targetMegapixels: number, divisor: number, ratioKey: string}}
+ */
+function currentSize(scale) {
+    const { targetMegapixels, divisor } = presetResolution(state.availablePresets, state.currentPreset);
+    return computeSize({ ratioKey: state.currentRatioKey, megapixels: targetMegapixels, scale, divisor });
+}
+
 // Image generation
-async function generateImage(upscale = false, save = false, resolutionMultiplier = 1) {
+async function generateImage(upscale = false, save = false, scale = 1) {
     DOM.progressFill.style.width = '75%';
 
     if (!state.currentPreset) {
@@ -104,8 +116,12 @@ async function generateImage(upscale = false, save = false, resolutionMultiplier
     }
     state.currentSeed = seed;
 
-    const width = Math.round(state.currentResolution.width * resolutionMultiplier);
-    const height = Math.round(state.currentResolution.height * resolutionMultiplier);
+    // The size comes from the preset's target megapixels x the selected ratio,
+    // scaled per side (2x per side = 4x megapixels).
+    setScale(scale);
+    const size = currentSize(scale);
+    const width = size.width;
+    const height = size.height;
 
     // Snapshot current prompt for history (before any async operations)
     const promptSnapshot = DOM.promptText.value;
@@ -114,22 +130,24 @@ async function generateImage(upscale = false, save = false, resolutionMultiplier
     state.lastGenerationParams = {
         prompt: promptSnapshot,
         preset: state.currentPreset,
+        ratioKey: size.ratioKey,
+        scale: scale,
+        targetMegapixels: size.targetMegapixels,
+        divisor: size.divisor,
         width: width,
         height: height,
-        baseWidth: state.currentResolution.width,
-        baseHeight: state.currentResolution.height,
         seed: seed,
         upscale: upscale,
-        resolutionMultiplier: resolutionMultiplier,
     };
 
     // Create history placeholder immediately with all metadata
     addToHistory('', promptSnapshot, {
         seed: seed,
         preset: state.currentPreset,
-        width: state.currentResolution.width,
-        height: state.currentResolution.height,
-        resolutionMultiplier: resolutionMultiplier,
+        ratioKey: size.ratioKey,
+        scale: scale,
+        width: width,
+        height: height,
     });
 
     let data;
@@ -187,10 +205,11 @@ async function saveToGallery() {
         addToHistory(data.image, params.prompt, {
             seed: params.seed,
             preset: params.preset,
-            width: params.baseWidth ?? params.width,
-            height: params.baseHeight ?? params.height,
+            ratioKey: params.ratioKey,
+            scale: params.scale ?? 1,
+            width: params.width,
+            height: params.height,
             upscale: params.upscale,
-            resolutionMultiplier: params.resolutionMultiplier ?? 1,
         });
         showSuccess('Image saved to gallery');
     };
@@ -366,6 +385,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadPresetsAndUI();
     populateProfileSelects();
     populatePresetSelects();
+    syncRatioSelect();
     populateEditorProfileList();
     populateEditorPresetList();
     setupMobileCameraButton();
@@ -463,9 +483,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         regenerate: () => generateImage(false, false, 1),
         regenerate15: () => generateImage(false, false, 1.5),
         regenerate2: () => generateImage(false, false, 2),
+        // The upscaler keeps the size of the generation being upscaled: the
+        // preset's target resolution still decides the requested width/height.
         upscale: async () => {
-            const multiplier = state.historyResolutionMultiplier || 1;
-            await generateImage(true, true, multiplier);
+            await generateImage(true, true, state.currentScale);
         },
         saveToGallery,
     };
@@ -480,14 +501,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Control handlers
     DOM.newBtn.addEventListener('click', () => {
         resetState();
-        state.historyResolutionMultiplier = null;
+        setScale(1);
         showScreen(1);
     });
 
-    DOM.resolutionSelect.addEventListener('change', (e) => {
-        state.currentResolution = RESOLUTIONS[e.target.value] || { width: 768, height: 1024 };
-        state.historyResolutionMultiplier = null;
-    });
+    DOM.resolutionSelect.addEventListener('change', (e) => setRatioKey(e.target.value));
 
     DOM.downloadBtn.addEventListener('click', () => {
         if (DOM.resultImage.src) {

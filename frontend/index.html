@@ -119,23 +119,24 @@
                         <div class="regenerate-section">
                             <label for="resolutionSelect" class="label">Aspect Ratio:</label>
                             <select id="resolutionSelect" class="select">
-                                <option value="1024x1024">1:1 (Square)</option>
-                                <option value="768x1024" selected>4:3 (Portrait)</option>
-                                <option value="1024x768">4:3 (Landscape)</option>
-                                <option value="720x1280">16:9 (Portrait)</option>
-                                <option value="1280x720">16:9 (Landscape)</option>
-                                <option value="688x1536">20:9 (Portrait)</option>
-                                <option value="1536x688">20:9 (Landscape)</option>
+                                <option value="1:1">1:1 (Square)</option>
+                                <option value="3:4" selected>3:4 (Portrait)</option>
+                                <option value="4:3">4:3 (Landscape)</option>
+                                <option value="9:16">9:16 (Portrait)</option>
+                                <option value="16:9">16:9 (Landscape)</option>
+                                <option value="9:20">9:20 (Portrait)</option>
+                                <option value="20:9">20:9 (Landscape)</option>
                             </select>
+                            <div id="resolutionInfo" class="resolution-info" aria-live="polite"></div>
 
                             <div class="regenerate-buttons">
                                 <button class="btn primary" id="regenerateBtn">
                                     Regenerate
                                 </button>
-                                <button class="btn small" id="regenerate15Btn" title="Regenerate at 1.5x resolution">
+                                <button class="btn small" id="regenerate15Btn" title="Regenerate at 1.5x per side (2.25x megapixels)">
                                     1.5x
                                 </button>
-                                <button class="btn small" id="regenerate2Btn" title="Regenerate at 2x resolution">
+                                <button class="btn small" id="regenerate2Btn" title="Regenerate at 2x per side (4x megapixels)">
                                     2x
                                 </button>
                             </div>
@@ -143,7 +144,7 @@
 
                         <div class="upscale-section">
                             <label for="upscaleBtn" class="label">Upscaler:</label>
-                            <button class="btn primary upscale-btn" id="upscaleBtn">
+                            <button class="btn primary upscale-btn" id="upscaleBtn" title="Generate at the preset target resolution with the 2x upscaler enabled, then save">
                                 Upscale and save
                             </button>
                         </div>

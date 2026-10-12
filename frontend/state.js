@@ -1,5 +1,7 @@
 // Centralized state management and DOM registry
 
+import { DEFAULT_RATIO_KEY } from './resolution.js';
+
 // DOM Element Registry
 export const DOM = {
     // Generate view
@@ -20,6 +22,7 @@ export const DOM = {
     upscaleBtn: document.getElementById('upscaleBtn'),
     promptText: document.getElementById('promptText'),
     resolutionSelect: document.getElementById('resolutionSelect'),
+    resolutionInfo: document.getElementById('resolutionInfo'),
     errorContainer: document.getElementById('errorContainer'),
     errorMessage: document.getElementById('errorMessage'),
     errorClose: document.getElementById('errorClose'),
@@ -91,16 +94,9 @@ export const DOM = {
     deleteAllGalleryBtn: document.getElementById('deleteAllGalleryBtn'),
 };
 
-// Resolution configuration
-export const RESOLUTIONS = {
-    '1024x1024': { width: 1024, height: 1024 },
-    '768x1024': { width: 768, height: 1024 },
-    '1024x768': { width: 1024, height: 768 },
-    '720x1280': { width: 720, height: 1280 },
-    '1280x720': { width: 1280, height: 720 },
-    '688x1536': { width: 688, height: 1536 },
-    '1536x688': { width: 1536, height: 688 },
-};
+// Resolution configuration lives in resolution.js (RATIOS + computeSize):
+// the preset owns the target resolution in megapixels, the UI derives the
+// concrete width/height for the selected aspect ratio from it.
 
 // Constants
 export const MAX_HISTORY = 10;
@@ -119,7 +115,11 @@ export const state = {
 
     // Image handling
     selectedFile: null,
-    currentResolution: { width: 768, height: 1024 },
+    // Selected aspect ratio key (see RATIOS) and per-side scale factor of the
+    // last generation; the actual width/height are derived from these plus the
+    // preset's target_megapixels.
+    currentRatioKey: DEFAULT_RATIO_KEY,
+    currentScale: 1,
     currentSeed: null,
 
     // Processing state
@@ -148,9 +148,6 @@ export const state = {
 
     // Last generation parameters (for save-to-gallery re-execution)
     lastGenerationParams: null,
-
-    // Resolution multiplier from restored history item (used by upscale button)
-    historyResolutionMultiplier: null,
 };
 
 /**

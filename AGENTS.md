@@ -34,17 +34,21 @@ imagegen/
 ├── config.json         # Global configuration (created from template)
 ├── config.template.json # Configuration template file
 ├── pyproject.toml      # Project dependencies and configuration
+├── package.json        # JS test runner config (node --test; no runtime JS deps)
 ├── tests/              # Unit tests
 │   ├── test_image.py
 │   ├── test_profile_manager.py
 │   ├── test_preset_manager.py
+│   ├── test_preset_resolution.py
 │   ├── test_validation.py
-│   └── test_llm.py
+│   ├── test_llm.py
+│   └── js/resolution.test.mjs   # Frontend resolution math (node --test)
 ├── frontend/           # Static frontend files (ES modules)
 │   ├── index.html
 │   ├── main.js         # Entry point, navigation handlers, event binding
 │   ├── api.js          # API call functions with unified error handling
 │   ├── state.js        # Centralized state management and DOM registry
+│   ├── resolution.js   # Aspect-ratio table + megapixel -> width/height math (pure, tested)
 │   ├── ui.js           # UI operations and custom dialog components
 │   ├── history.js      # Image history management
 │   ├── profile-editor.js # Profile editor logic + profile operation config
@@ -56,7 +60,7 @@ imagegen/
 ├── profiles/           # Prompt profiles (LLM analysis prompts only)
 │   └── <profile_name>/extraction_prompt.txt
 └── presets/            # Generation presets (separate from profiles)
-    └── <preset_name>/settings.json
+    └── <preset_name>/settings.json   # incl. optional target_megapixels / resolution_divisor
 ```
 
 ## Core Architecture Principles
@@ -147,13 +151,24 @@ The frontend is a modular ES module architecture. Key modules:
 Profiles and presets are **separate concepts**:
 
 - **Profiles** (`profiles/`) contain only `extraction_prompt.txt` - the prompt template for LLM image analysis.
-- **Presets** (`presets/`) contain `settings.json` - the generation parameters that do not change per-request (e.g. `model`, `steps`, `cfg_scale`, `sampler`, `negative_prompt`, `lora_specs`).
+- **Presets** (`presets/`) contain `settings.json` - the generation parameters that do not change per-request (e.g. `model`, `steps`, `cfg_scale`, `sampler`, `negative_prompt`, `lora_specs`) plus the optional resolution target (`target_megapixels`, `resolution_divisor`).
 
 ### Generation Parameters
 
-The generation endpoint accepts standard `prompt` and `seed` fields plus the non-standard parameters: `model`, `steps`, `cfg_scale`, `width`, `height`, `sampler` (`euler | er_sde`), `negative_prompt`, `upscale` (boolean), `qwen_vae_enhance` (boolean), `film_grain`, `sharpening`, `lora_specs` (array of `name:weight` strings). Additional custom fields in a preset are passed through as-is.
+The generation endpoint accepts standard `prompt` and `seed` fields plus the non-standard parameters: `model`, `steps`, `cfg_scale`, `width`, `height`, `sampler` (`euler | er_sde`), `negative_prompt`, `upscale` (boolean), `qwen_vae_enhance` (boolean), `film_grain`, `sharpening`, `lora_specs` (array of `name:weight` strings). Additional custom fields in a preset are passed through as-is, **except** the reserved resolution keys below.
 
 Presets configure the parameters that stay fixed across requests (e.g. `model`, `steps`, `cfg_scale`, `sampler`, `negative_prompt`, `lora_specs`); `prompt`, `seed`, `width`, `height` and `upscale` are filled in from the request. The `LLMService.generate_image()` method merges them into the payload sent to `{llm_endpoint}/images/generations`.
+
+### Resolution Targeting (preset-owned target, frontend computes)
+
+Presets define a **target resolution in megapixels** (`target_megapixels`, where **1 MP = 1024 x 1024 px**) instead of fixed pixel sizes, so every aspect ratio gets the same pixel budget. `resolution_divisor` (default `8`) aligns both sides to a multiple of the VAE tile size.
+
+Division of responsibility - deliberately frontend-driven:
+
+- **Backend**: stores the keys in `settings.json`, exposes them on `GET /api/presets` (`PresetManager.list_presets()` + `coerce_preset_resolution_fields()`), and strips them from the upstream payload (`services/preset.get_preset()` / `config.RESERVED_PRESET_KEYS`). It does **not** compute, clamp or validate `width`/`height` - `/api/generate` generates exactly the size it receives.
+- **Frontend**: `frontend/resolution.js` owns the ratio table (`RATIOS`) and `computeSize({ ratioKey, megapixels, scale, divisor })`; `state.currentRatioKey` + `state.currentScale` replace the old pixel table. Preset/ratio/scale changes all funnel through `refresh.js` (`setCurrentPreset`, `setRatioKey`, `setScale`), which refreshes the on-screen size read-out (`DOM.resolutionInfo`).
+- Scale factors are **per side**: `1.5x` = 2.25x megapixels, `2x` = 4x. `Upscale and save` keeps the current generation's size and only sets the `upscale` flag, so the preset target still governs the requested size.
+- Keep the JS defaults (`PIXELS_PER_MEGAPIXEL`, `DEFAULT_TARGET_MEGAPIXELS`, `DEFAULT_RESOLUTION_DIVISOR`) in sync with `app/config.py`.
 
 ## Data Flow
 
@@ -168,7 +183,7 @@ Presets configure the parameters that stay fixed across requests (e.g. `model`, 
 ### Image Generation Flow
 
 1. User reviews/modifies the extracted prompt
-2. User selects aspect ratio and optional upscaling (boolean 2x)
+2. User selects aspect ratio and optional upscaling (boolean 2x); the UI computes `width`/`height` from the preset's `target_megapixels`, the ratio and the per-side scale (1 / 1.5 / 2x)
 3. Backend loads the preset via `preset.get_preset()`
 4. `LLMService.generate_image()` merges request params (prompt, seed, width, height, upscale) with the preset params and POSTs to `{llm_endpoint}/images/generations` (async `httpx`)
 5. The generated image base64 is returned
@@ -180,7 +195,7 @@ Presets configure the parameters that stay fixed across requests (e.g. `model`, 
 |--------|----------|-------------|
 | GET | `/` | Serves the frontend application |
 | GET | `/api/profiles` | Lists all available profiles |
-| GET | `/api/presets` | Lists all available presets |
+| GET | `/api/presets` | Lists all available presets (name + `target_megapixels` + `resolution_divisor`) |
 | POST | `/api/analyze` | Analyzes an uploaded image and returns a generation prompt |
 | POST | `/api/generate` | Generates an image from a prompt using the OpenAI-compatible endpoint |
 | GET | `/api/gallery` | Lists saved generated images |
@@ -219,6 +234,13 @@ Test modules:
 - `test_profile_manager.py`: Profile CRUD operations
 - `test_preset_manager.py`: Preset CRUD operations
 - `test_llm.py`: LLM service tool-call parsing, image generation, and model listing (mocked `httpx`)
+- `test_preset_resolution.py`: preset resolution fields (listing, stripping before upstreaming) and `/api/generate` size pass-through
+
+Frontend tests use Node's built-in test runner (no dependencies to install, Node >= 22) and cover `frontend/resolution.js`:
+
+```bash
+npm test
+```
 
 ## Linting
 
@@ -246,6 +268,9 @@ python app.py
 
 # Run tests
 python -m pytest tests/ -v
+
+# Run frontend tests (node --test, Node >= 22)
+npm test
 
 # Lint code
 ruff check .

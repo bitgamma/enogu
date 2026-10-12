@@ -9,6 +9,8 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.config import RESOLUTION_DIVISOR_KEY, TARGET_MEGAPIXELS_KEY
+
 logger = logging.getLogger(__name__)
 
 # Directory/entity names may contain alphanumerics, dash and underscore (no traversal).
@@ -56,6 +58,30 @@ def build_llm_headers(apikey: str, content_type: str = "application/json") -> di
     if apikey:
         headers["Authorization"] = f"Bearer {apikey}"
     return headers
+
+
+def coerce_preset_resolution_fields(settings: Any) -> tuple[float | None, int | None]:
+    """Extract `(target_megapixels, resolution_divisor)` from a preset's settings.
+
+    Purely a type-safety net for the list endpoint: values the frontend cannot
+    use (missing, wrong type, non-positive) are reported as null so the client
+    falls back to its own defaults. No range is enforced here - the preset is
+    free to ask for any resolution.
+    """
+    if not isinstance(settings, dict):
+        return None, None
+
+    def _is_number(value: Any) -> bool:
+        # bool is an int subclass in Python, so exclude it explicitly.
+        return isinstance(value, int | float) and not isinstance(value, bool)
+
+    megapixels = settings.get(TARGET_MEGAPIXELS_KEY)
+    target = float(megapixels) if _is_number(megapixels) and megapixels > 0 else None
+
+    divisor = settings.get(RESOLUTION_DIVISOR_KEY)
+    aligned = int(divisor) if _is_number(divisor) and int(divisor) >= 1 else None
+
+    return target, aligned
 
 
 def validate_json(value: Any, field_name: str = "field") -> dict | None:

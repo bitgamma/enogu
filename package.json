@@ -1,0 +1,14 @@
+{
+    "name": "enogu",
+    "version": "0.1.0",
+    "private": true,
+    "description": "JS tests for the Enogu frontend (resolution targeting). The app itself needs no JS build step.",
+    "type": "module",
+    "scripts": {
+        "test": "node --test \"tests/js/*.test.mjs\"",
+        "test:js": "node --test \"tests/js/*.test.mjs\""
+    },
+    "engines": {
+        "node": ">=22"
+    }
+}

@@ -2,7 +2,7 @@
 
 import { DOM, state } from './state.js';
 import { loadPresetContent, downloadPreset } from './api.js';
-import { refreshPresetsAndUI } from './refresh.js';
+import { refreshPresetsAndUI, setCurrentPreset } from './refresh.js';
 import { executeOperation } from './editor.js';
 import { showError } from './ui.js';
 
@@ -17,9 +17,9 @@ const PRESET_OPERATIONS = {
             settings: DOM.settingsJsonEditor.value,
         }),
         onsuccess: () => {
-            if (!state.editorOriginalPresetNames.has(state.currentPreset)) {
-                refreshPresetsAndUI(populateEditorPresetList);
-            }
+            // Always reload the preset list: a saved preset may have changed its
+            // target resolution, which the generate view derives its sizes from.
+            refreshPresetsAndUI(populateEditorPresetList);
         },
     },
     duplicate: {
@@ -52,9 +52,7 @@ const PRESET_OPERATIONS = {
         confirm: (name) => `Are you sure you want to delete preset "${name}"? This action cannot be undone.`,
         buildPayload: (name) => ({ name }),
         onsuccess: () => {
-            state.currentPreset = null;
-            DOM.presetSelect.value = '';
-            DOM.presetSelectResult.value = '';
+            setCurrentPreset(null);
             state.editorPresetData = { settings: '' };
             DOM.editorPresetName.textContent = 'Select a preset';
             DOM.savePresetBtn.disabled = true;
@@ -154,9 +152,8 @@ export async function loadPresetContentIntoEditor(presetName) {
  * @param {string} presetName - Preset name to select
  */
 export async function selectPresetForEdit(presetName) {
-    state.currentPreset = presetName;
-    DOM.presetSelect.value = presetName;
-    DOM.presetSelectResult.value = presetName;
+    // Goes through the shared setter: the preset owns the target resolution.
+    setCurrentPreset(presetName);
 
     syncPresetEditorSidebar();
     await loadPresetContentIntoEditor(presetName);

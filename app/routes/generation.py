@@ -70,8 +70,10 @@ async def generate_image(
     """Generate image from prompt using the OpenAI-compatible endpoint.
 
     Uses the specified preset for the non-changing generation parameters;
-    prompt, seed, width, height and upscale are filled from the request.
-    Optionally saves the image to the output folder.
+    prompt, seed, width, height and upscale are filled from the request. The
+    concrete width/height are computed by the client from the preset's
+    `target_megapixels` and the selected aspect ratio; the server accepts them
+    as given. Optionally saves the image to the output folder.
     """
     if not prompt:
         raise HTTPException(status_code=400, detail="No prompt provided")

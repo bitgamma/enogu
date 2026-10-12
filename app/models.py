@@ -125,9 +125,16 @@ class PresetRenameRequest(BaseModel):
 
 
 class PresetItem(BaseModel):
-    """Single preset item in list response."""
+    """Single preset item in list response.
+
+    `target_megapixels` (1 MP = 1024x1024 pixels) and `resolution_divisor` are
+    the resolution-targeting settings the frontend uses to compute the actual
+    width/height per aspect ratio. Null when unset or invalid in the preset.
+    """
 
     name: str
+    target_megapixels: float | None = None
+    resolution_divisor: int | None = None
 
 
 class PresetListResponse(BaseModel):

@@ -10,7 +10,8 @@ A web application that processes uploaded images through an LLM for analysis and
 - Automatic prompt extraction from uploaded images
 - Image generation via the OpenAI-compatible endpoint (same endpoint used for analysis)
 - Separate **profile** (LLM extraction prompt) and **preset** (generation parameters) management
-- Custom aspect ratio selection (1:1, 4:3, 16:9, 20:9 in portrait/landscape)
+- Aspect ratio selection (1:1, 3:4, 4:3, 9:16, 16:9, 9:20, 20:9 in portrait/landscape)
+- **Resolution targeting**: each preset defines a target resolution in megapixels (1 MP = 1024x1024 pixels); the concrete size for the selected ratio is computed by the UI
 - Boolean upscaling support (2x latent upscale, on/off)
 - Image history (last 10 generated images)
 - Re-analyze and regenerate capabilities
@@ -86,6 +87,7 @@ Example `presets/anima-mikkoani/settings.json`:
     "steps": 20,
     "cfg_scale": 4.0,
     "sampler": "er_sde",
+    "target_megapixels": 1.0,
     "qwen_vae_enhance": true,
     "film_grain": 0,
     "sharpening": 0.5,
@@ -93,7 +95,30 @@ Example `presets/anima-mikkoani/settings.json`:
 }
 ```
 
-The full set of accepted parameters (sent as regular JSON to the generation endpoint) is: `model`, `prompt`, `seed`, `steps`, `cfg_scale`, `width`, `height`, `sampler` (`euler | er_sde`), `negative_prompt`, `upscale` (boolean), `qwen_vae_enhance` (boolean), `film_grain`, `sharpening`, `lora_specs`. Additional custom fields are passed through as-is.
+The full set of accepted parameters (sent as regular JSON to the generation endpoint) is: `model`, `prompt`, `seed`, `steps`, `cfg_scale`, `width`, `height`, `sampler` (`euler | er_sde`), `negative_prompt`, `upscale` (boolean), `qwen_vae_enhance` (boolean), `film_grain`, `sharpening`, `lora_specs`. Additional custom fields are passed through as-is, **except** `target_megapixels` and `resolution_divisor`: those are app-level resolution settings (see below) and are stripped before the request is sent.
+
+### Resolution Targeting
+
+Instead of fixed pixel sizes, a preset declares a **target resolution in megapixels**, where **1 MP = 1024 x 1024 pixels** (1,048,576 px):
+
+- `target_megapixels` (optional, default `1.0`) - the pixel budget every aspect ratio is normalized to, so switching ratio no longer changes how much detail you get
+- `resolution_divisor` (optional, default `8`) - both sides are rounded to a multiple of this (VAE tile size); use `16`/`32` for models that need coarser alignment
+
+The target is stored on the server and served by `GET /api/presets`; the **frontend** turns it into a concrete `width`/`height` (`frontend/resolution.js`) and sends those to `/api/generate`, which generates exactly the size it is given. The size the next generation will use is shown under the aspect-ratio selector.
+
+Sizes at `target_megapixels: 1.0` (divisor 8):
+
+| Ratio | 1x | 1.5x | 2x |
+|-------|----|------|----|
+| 1:1 | 1024x1024 | 1536x1536 | 2048x2048 |
+| 3:4 | 888x1184 | 1328x1768 | 1776x2368 |
+| 4:3 | 1184x888 | 1768x1328 | 2368x1776 |
+| 9:16 | 768x1368 | 1152x2048 | 1536x2728 |
+| 16:9 | 1368x768 | 2048x1152 | 2728x1536 |
+| 9:20 | 688x1528 | 1032x2288 | 1376x3056 |
+| 20:9 | 1528x688 | 2288x1032 | 3056x1376 |
+
+The `1.5x` / `2x` buttons scale **per side**, so `1.5x` is 2.25x the megapixels and `2x` is 4x. The `Upscale and save` button keeps the size of the current generation and turns on the endpoint's 2x latent upscaler (the preset target still decides the requested size).
 
 ## Running the Application
 
@@ -109,7 +134,7 @@ The server will start on `http://localhost:8380` (or the port specified in `conf
 |--------|----------|-------------|
 | GET | `/` | Serves the frontend application |
 | GET | `/api/profiles` | Lists all available profiles |
-| GET | `/api/presets` | Lists all available presets |
+| GET | `/api/presets` | Lists all available presets (with their target resolution) |
 | POST | `/api/analyze` | Analyzes an uploaded image and returns a generation prompt |
 | POST | `/api/generate` | Generates an image from a prompt using the OpenAI-compatible endpoint |
 | GET | `/api/gallery` | Lists saved generated images |
@@ -138,8 +163,8 @@ The server will start on `http://localhost:8380` (or the port specified in `conf
 - `POST /api/generate`
   - `prompt`: str - The generation prompt
   - `preset`: str - Preset name to use
-  - `width`: int (default: 1024) - Image width
-  - `height`: int (default: 1024) - Image height
+  - `width`: int (default: 1024) - Image width (computed by the frontend from the preset's `target_megapixels` x the selected ratio; used as given)
+  - `height`: int (default: 1024) - Image height (as above)
   - `seed`: int (default: -1) - Seed value
   - `upscale`: bool (default: false) - Enable 2x latent upscaling
   - `save`: bool (default: false) - Save to the gallery
@@ -150,7 +175,8 @@ The server will start on `http://localhost:8380` (or the port specified in `conf
 - **Generate View**: Select a profile + preset, upload an image, and run the analyze → generate flow
 - **Image Upload**: Drag-and-drop or click to upload images
 - **Mobile Camera**: Direct camera capture on mobile devices
-- **Aspect Ratio Selection**: Choose from predefined ratios (1:1, 4:3, 16:9, 20:9)
+- **Aspect Ratio Selection**: Choose from predefined ratios (1:1, 3:4, 4:3, 9:16, 16:9, 9:20, 20:9)
+- **Resolution Read-out**: Shows the target resolution of the selected preset and the exact size (and megapixels) the next generation will use
 - **Upscaling**: Optional boolean 2x upscaling (on/off)
 - **Image History**: View last 10 generated images
 - **Re-analyze**: Re-run LLM analysis on the same image
@@ -162,11 +188,21 @@ The server will start on `http://localhost:8380` (or the port specified in `conf
 
 ## Running the Tests
 
+Backend (pytest):
+
 ```bash
 python -m pytest tests/ -v
 ```
 
-Tests cover name validation, image processing, profile/preset managers, and the LLM service (with mocked HTTP).
+Tests cover name validation, image processing, profile/preset managers, preset resolution targeting, and the LLM service (with mocked HTTP).
+
+Frontend (Node's built-in test runner, no dependencies to install, Node >= 22):
+
+```bash
+npm test
+```
+
+Tests cover `frontend/resolution.js` (megapixel math, per-side scaling, divisor alignment, fallbacks) and keep the aspect-ratio `<select>` in sync with the ratio table.
 
 ## Dependencies
 
@@ -192,12 +228,14 @@ imagegen/
 ├── config.json         # Global configuration (created from config.template.json)
 ├── config.template.json # Configuration template
 ├── pyproject.toml      # Project dependencies
-├── tests/              # Unit tests
+├── package.json        # JS test runner config (no runtime JS dependencies)
+├── tests/              # Unit tests (pytest) + tests/js (node --test)
 ├── frontend/           # Static frontend files (ES modules)
 │   ├── index.html      # Main HTML page
 │   ├── main.js         # Entry point, navigation, event binding
 │   ├── api.js          # API call functions
 │   ├── state.js        # State management and DOM registry
+│   ├── resolution.js   # Aspect ratios + megapixel -> width/height math
 │   ├── ui.js           # UI operations and dialog components
 │   ├── refresh.js      # Shared data-loading / refresh helpers
 │   ├── editor.js       # Shared editor operation executor

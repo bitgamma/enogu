@@ -88,6 +88,23 @@ LLM_TIMEOUT_SECONDS = 60
 IMAGE_GEN_TIMEOUT_SECONDS = 300
 MAX_SEED_VALUE = (1 << 32) - 1
 
+# --- Resolution targeting -------------------------------------------------
+# Presets define a *target resolution in megapixels* (1 MP == 1024 x 1024
+# pixels). The frontend derives the concrete width/height for the selected
+# aspect ratio from this value: the backend only stores the target and exposes
+# it, it does not validate or recompute the sizes it is asked to generate.
+# Keep these defaults in sync with frontend/resolution.js.
+MEGAPIXEL_PIXELS = 1024 * 1024
+DEFAULT_TARGET_MEGAPIXELS = 1.0
+DEFAULT_RESOLUTION_DIVISOR = 8
+
+# Preset-owned keys, interpreted by the frontend to derive width/height. They
+# are stored in settings.json but never forwarded to the generation endpoint
+# (every other preset field is passed through as-is).
+TARGET_MEGAPIXELS_KEY = "target_megapixels"
+RESOLUTION_DIVISOR_KEY = "resolution_divisor"
+RESERVED_PRESET_KEYS = (TARGET_MEGAPIXELS_KEY, RESOLUTION_DIVISOR_KEY)
+
 
 def get_config() -> dict[str, Any]:
     """Get the in-memory configuration dict."""

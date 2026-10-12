@@ -440,6 +440,15 @@ label {
     gap: 6px;
 }
 
+/* Read-out of the size the next generation will use (target MP -> width x height) */
+.resolution-info {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+    min-height: 15px;
+    line-height: 1.25;
+}
+
 .btn.small {
     flex: none;
     min-width: auto;
